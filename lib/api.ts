@@ -19,14 +19,15 @@ export async function checkBackend(): Promise<{ ok: true } | { ok: false; messag
 export interface AnalyzePayload {
   imageBase64: string;
   imageMediaType: string;
-  voiceUri?: string | null;
+  /** Voice recording as base64 (avoids multipart file upload issues). */
+  voiceBase64?: string | null;
+  voiceMediaType?: string;
   latitude: number;
   longitude: number;
 }
 
 /**
- * Sends eye photo, optional voice, and location to backend for health analysis.
- * Backend fetches pollen and calls Claude with the image.
+ * Sends eye photo, optional voice (base64), and location to backend for health analysis.
  */
 export async function analyzeHealth(payload: AnalyzePayload): Promise<AnalysisResult> {
   const formData = new FormData();
@@ -35,13 +36,9 @@ export async function analyzeHealth(payload: AnalyzePayload): Promise<AnalysisRe
   formData.append('imageBase64', payload.imageBase64);
   formData.append('imageMediaType', payload.imageMediaType || 'image/jpeg');
 
-  if (payload.voiceUri) {
-    const name = payload.voiceUri.split('/').pop() || 'voice.m4a';
-    formData.append('voice', {
-      uri: payload.voiceUri,
-      name,
-      type: 'audio/m4a',
-    } as unknown as Blob);
+  if (payload.voiceBase64) {
+    formData.append('voiceBase64', payload.voiceBase64);
+    formData.append('voiceMediaType', payload.voiceMediaType || 'audio/m4a');
   }
 
   const response = await fetch(`${API_URL}/analyze`, {
@@ -54,7 +51,14 @@ export async function analyzeHealth(payload: AnalyzePayload): Promise<AnalysisRe
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || `Analysis failed: ${response.status}`);
+    let message = text || `Analysis failed: ${response.status}`;
+    try {
+      const json = JSON.parse(text) as { error?: string };
+      if (json?.error) message = json.error;
+    } catch {
+      // use message as-is
+    }
+    throw new Error(message);
   }
 
   const data = (await response.json()) as AnalysisResult;

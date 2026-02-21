@@ -1,6 +1,5 @@
 import React, { useState, useRef } from 'react';
 import {
-  StyleSheet,
   Text,
   View,
   TouchableOpacity,
@@ -10,11 +9,28 @@ import {
 } from 'react-native';
 import { CameraView } from 'expo-camera';
 import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
 import * as Location from 'expo-location';
 
 import { useHealthCheckPermissions } from '../../hooks/useHealthCheckPermissions';
 import { analyzeHealth, checkBackend } from '../../lib/api';
 import type { AnalysisResult, Step } from '../../lib/types';
+import { colors, getSeverityColor } from './theme';
+import { styles } from './index.styles';
+
+const READ_ALOUD_SENTENCES = [
+  'The quick brown fox jumps over the lazy dog.',
+  'She sells seashells by the seashore.',
+  'How much wood would a woodchuck chuck if a woodchuck could chuck wood?',
+  'The sky is clear and the sun is bright today.',
+  'Please read this sentence in your normal speaking voice.',
+  'Pack my box with five dozen liquor jugs.',
+  'The five boxing wizards jump quickly.',
+];
+
+function getRandomReadAloudSentence(): string {
+  return READ_ALOUD_SENTENCES[Math.floor(Math.random() * READ_ALOUD_SENTENCES.length)];
+}
 
 export default function HomeScreen() {
   const { cameraPermission, requestAll } = useHealthCheckPermissions();
@@ -24,6 +40,7 @@ export default function HomeScreen() {
   const [step, setStep] = useState<Step>('menu');
   const [cameraReady, setCameraReady] = useState(false);
   const [eyePhotoBase64, setEyePhotoBase64] = useState<string | null>(null);
+  const [readAloudSentence, setReadAloudSentence] = useState<string>('');
   const [voiceUri, setVoiceUri] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
@@ -42,6 +59,7 @@ export default function HomeScreen() {
       });
       if (photo?.base64) {
         setEyePhotoBase64(photo.base64);
+        setReadAloudSentence(getRandomReadAloudSentence());
         setStep('recording');
       } else {
         Alert.alert('Error', 'Failed to capture photo');
@@ -74,17 +92,20 @@ export default function HomeScreen() {
 
   const stopRecording = async () => {
     if (!recordingRef.current) return;
+    const recording = recordingRef.current;
+    recordingRef.current = null;
+    setIsRecording(false);
+    setStep('analyzing');
     try {
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
-      recordingRef.current = null;
+      await recording.stopAndUnloadAsync();
+      // Give the filesystem a moment to flush the recording before reading the URI
+      await new Promise((r) => setTimeout(r, 400));
+      const uri = recording.getURI();
       setVoiceUri(uri ?? null);
-      setIsRecording(false);
-      setStep('analyzing');
       await runAnalysis(uri ?? undefined);
     } catch {
       Alert.alert('Error', 'Failed to stop recording');
-      setIsRecording(false);
+      await runAnalysis(undefined);
     }
   };
 
@@ -104,10 +125,33 @@ export default function HomeScreen() {
         // use defaults
       }
 
+      const uri = finalVoiceUri ?? voiceUri ?? null;
+      let voiceBase64: string | null = null;
+      if (uri) {
+        try {
+          let readUri = uri;
+          // On Android, expo-av may return content://; expo-file-system reads file:// or needs a copy
+          if (uri.startsWith('content://') && FileSystem.cacheDirectory) {
+            const dest = `${FileSystem.cacheDirectory}voice_upload.m4a`;
+            await FileSystem.copyAsync({ from: uri, to: dest });
+            readUri = dest;
+          }
+          voiceBase64 = await FileSystem.readAsStringAsync(readUri, {
+            encoding: 'base64',
+          });
+          if (__DEV__) console.log('[runAnalysis] voice loaded, length:', voiceBase64?.length ?? 0);
+        } catch (e) {
+          if (__DEV__) console.warn('[runAnalysis] Could not read voice file:', uri?.slice(0, 60), e);
+        }
+      } else if (__DEV__) {
+        console.log('[runAnalysis] No voice URI (getURI() may have returned undefined)');
+      }
+
       const result = await analyzeHealth({
         imageBase64: eyePhotoBase64,
         imageMediaType: 'image/jpeg',
-        voiceUri: finalVoiceUri ?? voiceUri ?? null,
+        voiceBase64,
+        voiceMediaType: 'audio/m4a',
         latitude: lat,
         longitude: lon,
       });
@@ -141,6 +185,7 @@ export default function HomeScreen() {
     setStep('menu');
     setCameraReady(false);
     setEyePhotoBase64(null);
+    setReadAloudSentence('');
     setVoiceUri(null);
     setAnalysisResult(null);
     setAnalysisError(null);
@@ -190,16 +235,21 @@ export default function HomeScreen() {
         </View>
         <View style={styles.recordingContainer}>
           <Text style={styles.recordingText}>
-            {isRecording ? '🔴 Recording...' : 'Ready to record'}
+            {isRecording ? '🔴 Recording...' : 'Read this sentence aloud'}
           </Text>
-          <Text style={styles.instructionText}>Describe how you are feeling</Text>
+          <Text style={styles.instructionText}>
+            We'll analyze how you sound (e.g. congestion, hoarseness).
+          </Text>
+          {readAloudSentence ? (
+            <View style={styles.sentenceBox}>
+              <Text style={styles.sentenceText}>"{readAloudSentence}"</Text>
+            </View>
+          ) : null}
         </View>
         <View style={styles.buttonRow}>
           <TouchableOpacity
             style={[styles.button, styles.buttonCancel]}
-            onPress={() => {
-              reset();
-            }}
+            onPress={reset}
           >
             <Text style={styles.buttonText}>Cancel</Text>
           </TouchableOpacity>
@@ -251,7 +301,7 @@ export default function HomeScreen() {
             </>
           ) : (
             <>
-              <ActivityIndicator size="large" color="#007AFF" />
+              <ActivityIndicator size="large" color={colors.primary} />
               <Text style={styles.analyzingText}>Processing with Gemini...</Text>
             </>
           )}
@@ -262,8 +312,7 @@ export default function HomeScreen() {
 
   if (step === 'results' && analysisResult) {
     const prob = analysisResult.sicknessProbability ?? 0;
-    const severityColor =
-      prob < 30 ? '#34C759' : prob < 60 ? '#FF9500' : '#FF3B30';
+    const severityColor = getSeverityColor(prob);
 
     return (
       <View style={styles.container}>
@@ -274,7 +323,9 @@ export default function HomeScreen() {
 
           <View style={[styles.resultBox, { borderLeftColor: severityColor }]}>
             <Text style={styles.resultLabel}>Sickness Probability</Text>
-            <Text style={[styles.probabilityText, { color: severityColor }]}>{prob}%</Text>
+            <Text style={[styles.probabilityText, { color: severityColor }]}>
+              {prob}%
+            </Text>
             <Text style={styles.severityText}>
               Severity: {analysisResult.severity ?? '—'}
             </Text>
@@ -311,9 +362,11 @@ export default function HomeScreen() {
           )}
 
           {analysisResult.shouldSeeDoctor && (
-            <View style={[styles.infoBox, { borderLeftColor: '#FF3B30' }]}>
-              <Text style={[styles.infoTitle, { color: '#FF3B30' }]}>⚠️ Important</Text>
-              <Text style={[styles.infoText, { color: '#FF3B30' }]}>
+            <View style={[styles.infoBox, { borderLeftColor: colors.danger }]}>
+              <Text style={[styles.infoTitle, { color: colors.danger }]}>
+                ⚠️ Important
+              </Text>
+              <Text style={[styles.infoText, { color: colors.danger }]}>
                 Please consult a doctor
               </Text>
             </View>
@@ -342,7 +395,7 @@ export default function HomeScreen() {
         </View>
         <View style={styles.infoBox}>
           <Text style={styles.infoTitle}>🎤 Voice Analysis</Text>
-          <Text style={styles.infoText}>We will use your voice for symptom context</Text>
+          <Text style={styles.infoText}>Read a sentence aloud; we analyze how you sound (e.g. congestion, hoarseness)</Text>
         </View>
         <View style={styles.infoBox}>
           <Text style={styles.infoTitle}>🌍 Pollen Data</Text>
@@ -356,161 +409,3 @@ export default function HomeScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  scrollContent: {
-    padding: 20,
-    paddingTop: 40,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  headerText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  title: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 18,
-    color: '#666',
-  },
-  resultBox: {
-    backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-    alignItems: 'center',
-  },
-  resultLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-  },
-  probabilityText: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  severityText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  infoBox: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#007AFF',
-  },
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
-  },
-  symptomText: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-  },
-  camera: {
-    flex: 1,
-    width: '100%',
-  },
-  permissionFailed: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    padding: 20,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
-  },
-  button: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    minWidth: 120,
-    alignItems: 'center',
-  },
-  buttonStart: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 16,
-    marginTop: 20,
-  },
-  buttonCapture: {
-    backgroundColor: '#34C759',
-  },
-  buttonRecord: {
-    backgroundColor: '#007AFF',
-  },
-  buttonStop: {
-    backgroundColor: '#FF3B30',
-  },
-  buttonCancel: {
-    backgroundColor: '#999',
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  recordingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  recordingText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 16,
-  },
-  instructionText: {
-    fontSize: 16,
-    color: '#666',
-  },
-  analyzingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  analyzingText: {
-    fontSize: 18,
-    marginTop: 16,
-    color: '#333',
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#FF3B30',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-});
