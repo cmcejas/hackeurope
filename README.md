@@ -173,3 +173,82 @@ curl http://localhost:3001/health
 - **POST** `http://localhost:3001/analyze` — Body: `imageBase64`, `imageMediaType`, `latitude`, `longitude`; optional: `voiceBase64`, `voiceMediaType`, `allergyHistory`. Returns assessment (e.g. `sicknessProbability`, `shouldSeeDoctor`, `recommendations`).
 
 More detail: `backend/QUICKSTART.md`, `backend/voice-service/README.md`.
+
+---
+
+## Deploy to Vercel
+
+You can host **both the web app and the API** on one Vercel project. The voice service (Python/librosa) must be hosted separately (e.g. Railway, Render, Fly.io).
+
+### 1. Install the Vercel CLI
+
+```bash
+npm i -g vercel
+```
+
+### 2. Deploy from the repo root (web app + API)
+
+**Important:** Run `vercel` from the **project root** (where `vercel.json` and `package.json` are), not from `backend/`. That way you get:
+
+- The **Expo web app** at `https://your-project.vercel.app`
+- The **API** at the same domain: `/health`, `/analyze`, `/pollen`, `/environmental`
+
+```bash
+cd hackeurope   # or your repo root
+vercel
+```
+
+Follow the prompts (link to your Vercel account/team, confirm settings). Vercel will run `npm run build` (Expo web export) and set up the serverless function for the API.
+
+### 3. Set environment variables
+
+In the Vercel dashboard (Settings > Environment Variables), or via CLI from the repo root:
+
+```bash
+vercel env add GEMINI_API_KEY              # required for /analyze
+vercel env add EXPO_PUBLIC_API_URL         # set to your deployment URL, e.g. https://your-project.vercel.app
+vercel env add GOOGLE_POLLEN_API_KEY       # optional, for pollen data
+vercel env add VOICE_SERVICE_URL           # optional, URL of your hosted voice service
+```
+
+Set `EXPO_PUBLIC_API_URL` to your Vercel deployment URL (e.g. `https://your-project.vercel.app`) so the built web and mobile app call the right API.
+
+Redeploy so the new variables are used:
+
+```bash
+vercel --prod
+```
+
+### 4. Use the deployed site
+
+- **Web:** Open `https://your-project.vercel.app` in a browser. The app will call the same origin for the API, so no extra config is needed.
+- **Mobile (Expo Go):** In the project root `.env` set `EXPO_PUBLIC_API_URL=https://your-project.vercel.app` so the app can reach the API. Restart Expo after changing `.env`.
+
+### 5. Voice service (separate host)
+
+The Python voice service cannot run on Vercel (heavy dependencies, long-running process). Deploy it to any container-friendly platform:
+
+```bash
+cd backend/voice-service
+# e.g. Railway
+railway init && railway up
+
+# or Docker anywhere
+docker build -t voice-service .
+docker run -p 3002:3002 voice-service
+```
+
+Then set `VOICE_SERVICE_URL` in Vercel env vars to the deployed URL (e.g. `https://voice-service-xxx.up.railway.app`).
+
+### Limitations on Vercel
+
+| Constraint | Hobby (free) | Pro ($20/mo) |
+|---|---|---|
+| Function timeout | 10 s | 60 s |
+| Request body size | 4.5 MB | 4.5 MB |
+| Memory | 1024 MB | 1024 MB |
+
+- **Timeout:** `/analyze` (Gemini + pollen + geocoding) typically takes 10–30 s. Hobby plan will frequently time out; **Pro is recommended**.
+- **Body size:** Base64-encoded images are ~33% larger than the original file. A 3 MB photo becomes ~4 MB base64. Keep photos under ~3 MB, or compress before sending, to stay within the 4.5 MB limit.
+- **Cold starts:** First request after idle may be a few seconds slower.
+- **Voice:** Must be hosted externally (see above).

@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/index.mjs", "use": "@vercel/node" },
+    { "src": "package.json", "use": "@vercel/static-build", "config": { "distDir": "dist" } }
+  ],
+  "routes": [
+    { "src": "/health", "dest": "/api/index.mjs" },
+    { "src": "/analyze", "dest": "/api/index.mjs" },
+    { "src": "/pollen", "dest": "/api/index.mjs" },
+    { "src": "/environmental", "dest": "/api/index.mjs" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}

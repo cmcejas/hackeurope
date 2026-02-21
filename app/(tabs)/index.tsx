@@ -369,7 +369,11 @@ export default function HomeScreen() {
       <View style={styles.container}>
         <GradientBackground />
         <View style={styles.contentWrap}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={true}
+        >
           <View style={styles.heroSection}>
             <Text style={styles.heroTitle}>Results</Text>
           </View>
@@ -528,7 +532,7 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <GradientBackground />
       <View style={styles.contentWrap}>
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.heroSection}>
           <Text style={styles.heroTitle}>Health Check</Text>
           <Text style={styles.heroSubtitle}>

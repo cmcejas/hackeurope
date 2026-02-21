@@ -38,7 +38,7 @@ export default function RootLayout() {
 
   return (
     <>
-      <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+      <View style={{ flex: 1, backgroundColor: '#1a1a1a' }} onLayout={onLayoutRootView}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         </Stack>

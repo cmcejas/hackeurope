@@ -503,10 +503,14 @@ app.get('/environmental', async (req, res) => {
   }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Backend running at http://localhost:${PORT}`);
-  console.log(`On a device? Use your computer IP, e.g. http://<YOUR_IP>:${PORT}`);
-  console.log('Using Google Pollen API for pollen forecast data');
-  if (!GEMINI_API_KEY) console.warn('⚠️  GEMINI_API_KEY not set — analysis will fail');
-  if (!GOOGLE_POLLEN_KEY) console.warn('⚠️  GOOGLE_POLLEN_API_KEY not set — pollen data will be unavailable');
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Backend running at http://localhost:${PORT}`);
+    console.log(`On a device? Use your computer IP, e.g. http://<YOUR_IP>:${PORT}`);
+    console.log('Using Google Pollen API for pollen forecast data');
+    if (!GEMINI_API_KEY) console.warn('⚠️  GEMINI_API_KEY not set — analysis will fail');
+    if (!GOOGLE_POLLEN_KEY) console.warn('⚠️  GOOGLE_POLLEN_API_KEY not set — pollen data will be unavailable');
+  });
+}
+
+export default app;
