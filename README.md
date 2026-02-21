@@ -1,20 +1,41 @@
-# Welcome to your Expo app 👋
+# Health Check (Expo + Gemini + Pollen)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+An Expo Go app that uses a **picture of your eyes**, **voice recording**, and **Google Pollen API** data, analyzed by **Gemini** on a small backend, to give a simple “are you sick?” assessment.
 
 ## Get started
 
-1. Install dependencies
+### 1. Install dependencies
 
-   ```bash
-   npm install
-   ```
+```bash
+npm install
+```
 
-2. Start the app
+### 2. Backend (API keys stay here, not in the app)
 
-   ```bash
-   npx expo start
-   ```
+```bash
+cd backend
+cp .env.example .env
+# Edit .env: set GEMINI_API_KEY (and optionally GOOGLE_POLLEN_API_KEY)
+npm install
+npm run dev
+```
+
+Backend runs at `http://localhost:3001`. For a physical device, use your machine’s IP and set `EXPO_PUBLIC_API_URL` in the app’s `.env` **NetworkError?** On a real device, set `EXPO_PUBLIC_API_URL` in the project root `.env` to your computer IP (e.g. `http://192.168.1.5:3001`). Find IP: `ip addr` or `ipconfig`. Restart Expo after changing `.env`.
+
+### 3. App config
+
+In the project root, copy env and set the backend URL if needed:
+
+```bash
+cp .env.example .env
+# Optional: set EXPO_PUBLIC_API_URL to http://YOUR_IP:3001 for Expo Go on device
+```
+
+### 4. Start the app
+
+```bash
+npx expo start
+```
 
 In the output, you'll find options to open the app in a
 
