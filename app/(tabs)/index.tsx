@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Text,
   View,
@@ -56,6 +56,7 @@ export default function HomeScreen() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [locationDisplayName, setLocationDisplayName] = useState<string | null>(null);
 
   /* ── Actions ── */
 
@@ -185,6 +186,32 @@ export default function HomeScreen() {
     if (ok) setStep('camera');
   };
 
+  // Resolve coordinates to a human-readable place name when we have results
+  useEffect(() => {
+    const loc = analysisResult?.location;
+    if (!loc) {
+      setLocationDisplayName(null);
+      return;
+    }
+    let cancelled = false;
+    Location.reverseGeocodeAsync({ latitude: loc.latitude, longitude: loc.longitude })
+      .then((addresses) => {
+        if (cancelled || !addresses?.length) return;
+        const a = addresses[0];
+        const name =
+          a.formattedAddress?.trim() ||
+          [a.name, a.street, a.district, a.city, a.region, a.country].filter(Boolean).join(', ') ||
+          null;
+        if (!cancelled && name) setLocationDisplayName(name);
+      })
+      .catch(() => {
+        if (!cancelled) setLocationDisplayName(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [analysisResult?.location?.latitude, analysisResult?.location?.longitude]);
+
   const reset = () => {
     setStep('menu');
     setCameraReady(false);
@@ -192,6 +219,7 @@ export default function HomeScreen() {
     setReadAloudSentence('');
     setVoiceUri(null);
     setAnalysisResult(null);
+    setLocationDisplayName(null);
     setAnalysisError(null);
   };
 
@@ -392,15 +420,16 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* Location (precise coordinates) */}
+          {/* Location (place name; coordinates as fallback) */}
           {analysisResult.location && (
             <View style={styles.resultCard}>
               <View style={styles.resultCardHeader}>
                 <Text style={styles.resultCardIcon}>📍</Text>
-                <Text style={styles.resultCardTitle}>Location</Text>
+                <Text style={styles.resultCardTitle}>Your location</Text>
               </View>
               <Text style={styles.resultCardBody}>
-                {Number(analysisResult.location.latitude).toFixed(6)}, {Number(analysisResult.location.longitude).toFixed(6)}
+                {locationDisplayName ||
+                  `${Number(analysisResult.location.latitude).toFixed(6)}, ${Number(analysisResult.location.longitude).toFixed(6)}`}
               </Text>
             </View>
           )}
