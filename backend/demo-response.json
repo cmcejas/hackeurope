@@ -1,0 +1,106 @@
+{
+  "comment": "Example response from /environmental endpoint when Open-Meteo API is accessible",
+  "period": "48 hours",
+  "location": {
+    "latitude": 37.7749,
+    "longitude": -122.4194
+  },
+  "pollen": {
+    "level": "high",
+    "maxValue": 125.5,
+    "types": {
+      "alder": {
+        "name": "Alder",
+        "average": 12.3,
+        "max": 45.2,
+        "recentAverage": 38.1,
+        "trend": "increasing"
+      },
+      "birch": {
+        "name": "Birch",
+        "average": 8.7,
+        "max": 32.1,
+        "recentAverage": 28.5,
+        "trend": "increasing"
+      },
+      "grass": {
+        "name": "Grass",
+        "average": 75.2,
+        "max": 125.5,
+        "recentAverage": 98.3,
+        "trend": "increasing"
+      },
+      "mugwort": null,
+      "olive": null,
+      "ragweed": {
+        "name": "Ragweed",
+        "average": 5.1,
+        "max": 15.8,
+        "recentAverage": 12.2,
+        "trend": "stable"
+      }
+    },
+    "dominantTypes": [
+      { "type": "grass", "max": 125.5 },
+      { "type": "alder", "max": 45.2 }
+    ]
+  },
+  "airQuality": {
+    "pm10": {
+      "name": "PM10",
+      "average": 18.5,
+      "max": 35.2,
+      "recentAverage": 22.1,
+      "trend": "increasing"
+    },
+    "pm25": {
+      "name": "PM2.5",
+      "average": 12.5,
+      "max": 25.3,
+      "recentAverage": 15.8,
+      "trend": "increasing"
+    },
+    "carbonMonoxide": {
+      "name": "CO",
+      "average": 245.7,
+      "max": 380.2,
+      "recentAverage": 298.5,
+      "trend": "stable"
+    },
+    "nitrogenDioxide": {
+      "name": "NO2",
+      "average": 15.2,
+      "max": 28.7,
+      "recentAverage": 18.9,
+      "trend": "stable"
+    },
+    "sulphurDioxide": {
+      "name": "SO2",
+      "average": 2.1,
+      "max": 5.8,
+      "recentAverage": 3.2,
+      "trend": "stable"
+    },
+    "ozone": {
+      "name": "O3",
+      "average": 45.3,
+      "max": 85.2,
+      "recentAverage": 62.1,
+      "trend": "increasing"
+    }
+  },
+  "allergyRiskScore": {
+    "score": 55,
+    "level": "high",
+    "breakdown": {
+      "pollenContribution": 40,
+      "airQualityContribution": 15,
+      "reasoning": "High grass pollen (125.5 grains/m³) + moderate air quality impact"
+    }
+  },
+  "interpretation": {
+    "mainTrigger": "Grass pollen is the dominant allergen at very high levels",
+    "trend": "Pollen levels are increasing - symptoms may worsen",
+    "recommendation": "High allergy risk. Consider staying indoors during peak hours (morning). Use air filtration indoors."
+  }
+}

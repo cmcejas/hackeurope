@@ -1,169 +1,295 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-
 import fetch from 'node-fetch';
+import FormData from 'form-data';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GOOGLE_POLLEN_KEY = process.env.GOOGLE_POLLEN_API_KEY;
+const VOICE_SERVICE_URL = process.env.VOICE_SERVICE_URL || 'http://localhost:3002';
 
 app.use(cors());
 app.use(express.json({ limit: '30mb' }));
 
-/** Fetch pollen forecast for a location (max 5 days; API does not provide past data) */
-async function getPollenForecast(lat, lon) {
-  if (!GOOGLE_POLLEN_KEY) return { error: 'Pollen API key not configured' };
-  const url = `https://pollen.googleapis.com/v1/forecast:lookup?location.latitude=${lat}&location.longitude=${lon}&days=5&key=${GOOGLE_POLLEN_KEY}`;
+/* ═══════════════  POLLEN  ═══════════════ */
+
+async function getGooglePollenData(lat, lon) {
+  if (!GOOGLE_POLLEN_KEY) {
+    return { error: 'Google Pollen API key not configured' };
+  }
+  const url = `https://pollen.googleapis.com/v1/forecast:lookup?key=${GOOGLE_POLLEN_KEY}&location.latitude=${lat}&location.longitude=${lon}&days=5`;
   try {
-    const res = await fetch(url);
-    if (!res.ok) return { error: `Pollen API: ${res.status}` };
-    return await res.json();
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const errorText = await res.text();
+      return { error: `Google Pollen API: ${res.status} - ${errorText}` };
+    }
+    const data = await res.json();
+    return analyzeGooglePollenData(data, lat, lon);
   } catch (e) {
     return { error: String(e.message) };
   }
 }
 
-/** Strip data URL prefix if present; Gemini expects raw base64 only */
+function analyzeGooglePollenData(data, lat, lon) {
+  if (!data.dailyInfo || data.dailyInfo.length === 0) {
+    return { error: 'No pollen data available for this location' };
+  }
+  const dailyInfo = data.dailyInfo;
+
+  const pollenTypes = {
+    tree: { name: 'Tree', values: [], index: [] },
+    grass: { name: 'Grass', values: [], index: [] },
+    weed: { name: 'Weed', values: [], index: [] },
+  };
+
+  const indexToLevel = (index) => {
+    if (index == null || index < 1) return 'none';
+    if (index < 2) return 'low';
+    if (index < 3) return 'moderate';
+    if (index < 4) return 'high';
+    return 'very_high';
+  };
+
+  const indexToScore = (index) => {
+    if (index == null || index < 1) return 0;
+    if (index < 2) return 10;
+    if (index < 3) return 25;
+    if (index < 4) return 40;
+    return 50;
+  };
+
+  let maxPollenIndex = 0;
+  let dominantTypes = [];
+
+  dailyInfo.forEach((day) => {
+    if (day.pollenTypeInfo) {
+      day.pollenTypeInfo.forEach((typeInfo) => {
+        const code = typeInfo.code?.toLowerCase();
+        if (code && pollenTypes[code]) {
+          const index = typeInfo.indexInfo?.value || 0;
+          pollenTypes[code].values.push(typeInfo.indexInfo?.category || 'NONE');
+          pollenTypes[code].index.push(index);
+          maxPollenIndex = Math.max(maxPollenIndex, index);
+          if (index >= 2) {
+            dominantTypes.push({
+              type: pollenTypes[code].name,
+              level: typeInfo.indexInfo?.category || 'UNKNOWN',
+              index,
+              date: day.date,
+            });
+          }
+        }
+      });
+    }
+  });
+
+  const overallLevel = indexToLevel(maxPollenIndex);
+
+  const plantInfo = [];
+  if (dailyInfo[0]?.plantInfo) {
+    dailyInfo[0].plantInfo.forEach((plant) => {
+      if (plant.inSeason && plant.indexInfo?.value >= 2) {
+        plantInfo.push({
+          name: plant.displayName || plant.code,
+          type: plant.plantDescription?.type || 'unknown',
+          level: plant.indexInfo?.category || 'UNKNOWN',
+          index: plant.indexInfo?.value || 0,
+        });
+      }
+    });
+  }
+
+  dominantTypes.sort((a, b) => b.index - a.index);
+  const uniqueDominant = [];
+  const seenTypes = new Set();
+  dominantTypes.forEach((dt) => {
+    if (!seenTypes.has(dt.type)) {
+      uniqueDominant.push(dt);
+      seenTypes.add(dt.type);
+    }
+  });
+
+  const pollenScore = indexToScore(maxPollenIndex);
+  const allergyRiskScore = calculateGooglePollenRisk(pollenScore);
+
+  return {
+    source: 'Google Pollen API',
+    period: `${dailyInfo.length} days`,
+    location: { latitude: lat, longitude: lon },
+    regionCode: data.regionCode || 'unknown',
+    pollen: {
+      level: overallLevel,
+      maxIndex: maxPollenIndex,
+      types: {
+        tree: { name: 'Tree', currentLevel: pollenTypes.tree.values[0] || 'NONE', maxIndex: pollenTypes.tree.index.length > 0 ? Math.max(...pollenTypes.tree.index) : 0, forecast: pollenTypes.tree.values },
+        grass: { name: 'Grass', currentLevel: pollenTypes.grass.values[0] || 'NONE', maxIndex: pollenTypes.grass.index.length > 0 ? Math.max(...pollenTypes.grass.index) : 0, forecast: pollenTypes.grass.values },
+        weed: { name: 'Weed', currentLevel: pollenTypes.weed.values[0] || 'NONE', maxIndex: pollenTypes.weed.index.length > 0 ? Math.max(...pollenTypes.weed.index) : 0, forecast: pollenTypes.weed.values },
+      },
+      dominantTypes: uniqueDominant.slice(0, 3),
+      plantsInSeason: plantInfo.slice(0, 5),
+    },
+    allergyRiskScore,
+  };
+}
+
+function calculateGooglePollenRisk(pollenScore) {
+  const score = pollenScore * 2;
+  const level =
+    score < 20 ? 'low' :
+    score < 40 ? 'moderate' :
+    score < 70 ? 'high' : 'very_high';
+  return { score, level, note: 'Based on pollen levels only (air quality not available from Google Pollen API)' };
+}
+
+/* ═══════════════  VOICE SERVICE  ═══════════════ */
+
+/** Analyze voice via Python librosa microservice. Accepts a Buffer. */
+async function analyzeVoice(voiceBuffer, filename = 'recording.m4a', mimeType = 'audio/m4a') {
+  if (!voiceBuffer) return null;
+  try {
+    const formData = new FormData();
+    formData.append('audio', voiceBuffer, { filename, contentType: mimeType });
+    const response = await fetch(`${VOICE_SERVICE_URL}/analyze`, {
+      method: 'POST',
+      body: formData,
+      headers: formData.getHeaders(),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Voice service error:', response.status, errorText);
+      return { error: `Voice analysis failed: ${response.status}`, details: errorText };
+    }
+    return await response.json();
+  } catch (err) {
+    console.error('Voice analysis error:', err.message);
+    return { error: 'Voice service unavailable', details: err.message };
+  }
+}
+
+/* ═══════════════  HELPERS  ═══════════════ */
+
 function toRawBase64(value) {
   if (typeof value !== 'string') return value;
   const match = value.match(/^data:[\w/+-]+;base64,(.+)$/);
   return match ? match[1].trim() : value.trim();
 }
 
-/** Escape unescaped newlines inside JSON string values to fix "Unterminated string" errors */
 function tryFixJsonString(str) {
-  if (typeof str !== 'string') return str;
-  let inString = false;
-  let escape = false;
-  let result = '';
-  for (let i = 0; i < str.length; i++) {
-    const c = str[i];
-    if (escape) {
-      result += c;
-      escape = false;
-      continue;
-    }
-    if (c === '\\' && inString) {
-      result += c;
-      escape = true;
-      continue;
-    }
-    if (c === '"') {
-      inString = !inString;
-      result += c;
-      continue;
-    }
-    if (inString && (c === '\n' || c === '\r')) {
-      result += c === '\n' ? '\\n' : '\\r';
-      continue;
-    }
-    result += c;
-  }
-  return result;
+  let s = str;
+  const open = (s.match(/{/g) || []).length;
+  const close = (s.match(/}/g) || []).length;
+  if (open > close) s += '}'.repeat(open - close);
+  s = s.replace(/,\s*([}\]])/g, '$1');
+  s = s.replace(/(?<!\\)"\s*\n\s*/g, '" ');
+  return s;
 }
 
-/** Fallback: extract known fields with regex when JSON.parse fails */
 function extractJsonFields(str) {
-  const num = (re) => {
+  const grab = (key) => {
+    const re = new RegExp(`"${key}"\\s*:\\s*("(?:[^"\\\\]|\\\\.)*"|\\d+|true|false|null|\\[[^\\]]*\\])`, 'i');
     const m = str.match(re);
-    return m ? parseInt(m[1], 10) : 0;
+    if (!m) return undefined;
+    try { return JSON.parse(m[1]); } catch { return m[1].replace(/^"|"$/g, ''); }
   };
-  const strField = (re) => {
-    const m = str.match(re);
-    return m ? m[1].replace(/\\"/g, '"').trim() : undefined;
-  };
-  const symptomsMatch = str.match(/"symptoms"\s*:\s*\[([\s\S]*?)\]/);
-  let symptoms = [];
-  if (symptomsMatch) {
-    const inner = symptomsMatch[1];
-    const items = inner.match(/"([^"]*)"/g) || [];
-    symptoms = items.map((s) => s.slice(1, -1).replace(/\\"/g, '"'));
-  }
   return {
-    sicknessProbability: num(/"sicknessProbability"\s*:\s*(\d+)/),
-    symptoms,
-    eyeAnalysis: strField(/"eyeAnalysis"\s*:\s*"((?:[^"\\]|\\.)*)"/),
-    environmentalFactors: strField(/"environmentalFactors"\s*:\s*"((?:[^"\\]|\\.)*)"/),
-    recommendations: strField(/"recommendations"\s*:\s*"((?:[^"\\]|\\.)*)"/),
-    severity: strField(/"severity"\s*:\s*"([^"]*)"/) || 'unknown',
-    shouldSeeDoctor: /"shouldSeeDoctor"\s*:\s*true/.test(str),
+    sicknessProbability: grab('sicknessProbability'),
+    allergyProbability: grab('allergyProbability'),
+    symptoms: grab('symptoms'),
+    eyeAnalysis: grab('eyeAnalysis'),
+    environmentalFactors: grab('environmentalFactors'),
+    recommendations: grab('recommendations'),
+    severity: grab('severity'),
+    shouldSeeDoctor: grab('shouldSeeDoctor'),
+    isUnilateral: grab('isUnilateral'),
+    dischargeType: grab('dischargeType'),
   };
 }
 
-/** Call Gemini with image + text (+ optional voice) and return structured health assessment */
-async function analyzeWithGemini({
-  imageBase64,
-  imageMediaType,
-  pollenSummary,
-  lat,
-  lon,
-  voiceBase64,
-  voiceMimeType,
-}) {
-  if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY not set');
-  }
+/* ═══════════════  GEMINI  ═══════════════ */
+
+async function analyzeWithGemini({ imageBase64, imageMediaType, environmentalData, lat, lon, voiceAnalysis }) {
+  if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set');
 
   const rawBase64 = toRawBase64(imageBase64);
-  // Strip data URL prefix if present (same as image); Gemini expects raw base64 only
-  let rawVoiceBase64 = voiceBase64 ? toRawBase64(voiceBase64) : null;
-  const MAX_VOICE_BASE64_LENGTH = 2_600_000;
-  if (rawVoiceBase64 && rawVoiceBase64.length > MAX_VOICE_BASE64_LENGTH) {
-    rawVoiceBase64 = rawVoiceBase64.slice(0, MAX_VOICE_BASE64_LENGTH);
+
+  const envSummary = environmentalData?.error
+    ? `Environmental data unavailable: ${environmentalData.error}`
+    : `Pollen Level: ${environmentalData.pollen?.level || 'unknown'} (index: ${environmentalData.pollen?.maxIndex || 0}/5)
+Pollen Types: Tree=${environmentalData.pollen?.types?.tree?.currentLevel || 'N/A'}, Grass=${environmentalData.pollen?.types?.grass?.currentLevel || 'N/A'}, Weed=${environmentalData.pollen?.types?.weed?.currentLevel || 'N/A'}
+Dominant Allergens: ${environmentalData.pollen?.dominantTypes?.map((t) => `${t.type} (${t.level})`).join(', ') || 'none detected'}
+Plants in Season: ${environmentalData.pollen?.plantsInSeason?.map((p) => p.name).join(', ') || 'none detected'}
+Allergy Risk: ${environmentalData.allergyRiskScore?.level || 'unknown'} (score: ${environmentalData.allergyRiskScore?.score || 0}/100)
+Source: Google Pollen API - ${environmentalData.period || 'multi-day'} forecast`;
+
+  let voiceSummary;
+  if (!voiceAnalysis) {
+    voiceSummary = 'No voice recording provided';
+  } else if (voiceAnalysis.error) {
+    voiceSummary = `Voice analysis unavailable: ${voiceAnalysis.error}`;
+  } else {
+    voiceSummary = `Voice Analysis (librosa):
+Nasality Score: ${voiceAnalysis.nasality_score}/100 (confidence: ${voiceAnalysis.confidence}%)
+Interpretation: ${voiceAnalysis.interpretation}
+Suggests Nasal Congestion: ${voiceAnalysis.suggests_congestion ? 'YES - consistent with allergic rhinitis' : 'NO'}
+Key Features:
+- Spectral Centroid: ${voiceAnalysis.features?.spectral?.spectral_centroid_mean?.toFixed(0) || 'N/A'} Hz
+- Low/High Frequency Ratio: ${voiceAnalysis.features?.formant_proxy?.low_to_high_ratio?.toFixed(2) || 'N/A'}
+- Duration: ${voiceAnalysis.features?.duration_seconds || 'N/A'} seconds`;
   }
-  console.log('[analyzeWithGemini] voiceBase64 length:', rawVoiceBase64?.length ?? 'null');
 
-  const voiceInstruction = rawVoiceBase64
-    ? `The user read a standard English sentence aloud. Analyze their **voice** for signs of illness: congestion, nasal quality, hoarseness, raspiness, weakness, fatigue, or other qualities that may indicate they are unwell. Use this together with the eye photo.`
-    : 'No voice recording provided.';
+  const text = `You are a medical AI specializing in allergic conjunctivitis and ocular infections. Analyze the provided data:
 
-  const text = `You are a **sickness** assessment AI. Assess only whether the user might be unwell (infection, allergy, fatigue, congestion). Do **not** comment on skin blemishes, acne, cosmetic issues, or any non-illness appearance.
+1. **Eye Photo**: Examine for:
+   - Bilateral vs. unilateral redness (unilateral = high-risk, requires urgent care)
+   - Presence of clear tearing (suggests allergic) vs. purulent discharge (suggests bacterial/viral)
+   - Eyelid swelling, chemosis (conjunctival swelling)
+   - Dark circles or periorbital edema
 
-1. **Eye photo**: Look **only** for signs of illness: redness or swelling suggesting infection or allergy, discharge, or signs of fatigue. Ignore and do not mention skin blemishes, dark circles as cosmetic, or other non-illness features. If you mention the eyes/face, restrict it to illness-relevant findings only.
 2. **Location**: ${lat}, ${lon}
-3. **Pollen / past days**: The data below is **only a forecast** (today and upcoming days). We have **no data for the past**. You **must** consider the **past 2–4 days**: allergy symptoms often appear 1–4 days after exposure, so the user may be feeling lingering effects from recent pollen even if the forecast is low. **Do not** conclude that "pollen is unlikely to contribute" or "environmental pollen is highly unlikely" solely because the forecast shows low levels. Instead, state that recent exposure is unknown and that past 2–4 day exposure could still explain allergy-like symptoms if present. When the forecast is low, say something like: "Current forecast is low; recent days are unknown—past 2–4 day exposure could still contribute to allergy-like symptoms."
-${pollenSummary}
-4. **Voice**: ${voiceInstruction}
 
-Respond with a single JSON object only, no markdown or extra text. In eyeAnalysis and symptoms, include only illness-related findings (no skin blemishes or cosmetic comments).
+3. **Environmental Data (48h historical)**:
+${envSummary}
+
+4. **Voice Recording Analysis**:
+${voiceSummary}
+
+**IMPORTANT SAFETY RULES**:
+- If redness is UNILATERAL (one eye only), set "shouldSeeDoctor": true and flag as urgent
+- If purulent discharge is present, recommend immediate medical consultation
+- Consider environmental pollen levels when assessing allergy probability
+- Focus on sickness indicators only (not skin blemishes, acne, etc.)
+
+Respond with a single JSON object only, no markdown or extra text:
 {
   "sicknessProbability": <0-100>,
-  "symptoms": ["illness-related symptom only"],
-  "eyeAnalysis": "illness-relevant findings only, no blemishes/cosmetic",
-  "environmentalFactors": "include note on past 2-4 day pollen uncertainty when forecast is low",
-  "recommendations": "practical advice",
+  "allergyProbability": <0-100>,
+  "symptoms": ["symptom1", "symptom2"],
+  "eyeAnalysis": "detailed clinical description including laterality (bilateral/unilateral) and discharge type",
+  "environmentalFactors": "summarize pollen and air quality impact on symptoms",
+  "recommendations": "specific actionable advice",
   "severity": "none|mild|moderate|severe",
-  "shouldSeeDoctor": true or false
+  "shouldSeeDoctor": true or false,
+  "isUnilateral": true or false,
+  "dischargeType": "none|clear|purulent|unknown"
 }`;
 
   const parts = [
-    {
-      inline_data: {
-        mime_type: imageMediaType || 'image/jpeg',
-        data: rawBase64,
-      },
-    },
+    { inline_data: { mime_type: imageMediaType || 'image/jpeg', data: rawBase64 } },
+    { text },
   ];
-  if (rawVoiceBase64) {
-    parts.push({
-      inline_data: {
-        mime_type: voiceMimeType || 'audio/m4a',
-        data: rawVoiceBase64,
-      },
-    });
-  }
-  parts.push({ text });
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
   const body = JSON.stringify({
     contents: [{ parts }],
-    generationConfig: {
-      max_output_tokens: 2048,
-      response_mime_type: 'application/json',
-    },
+    generationConfig: { max_output_tokens: 2048, response_mime_type: 'application/json' },
   });
+
   const maxRetries = 2;
   let lastErr = null;
   let res;
@@ -173,18 +299,11 @@ Respond with a single JSON object only, no markdown or extra text. In eyeAnalysi
     const timeoutMs = 90_000;
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-        signal: controller.signal,
-      });
+      res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, signal: controller.signal });
       clearTimeout(timeoutId);
     } catch (fetchErr) {
       clearTimeout(timeoutId);
-      if (fetchErr.name === 'AbortError') {
-        throw new Error('Analysis timed out. Try a shorter recording or try again.');
-      }
+      if (fetchErr.name === 'AbortError') throw new Error('Analysis timed out. Try a shorter recording or try again.');
       throw fetchErr;
     }
 
@@ -210,9 +329,7 @@ Respond with a single JSON object only, no markdown or extra text. In eyeAnalysi
     }
 
     if (res.status === 429) {
-      throw new Error(
-        'Gemini daily request limit reached. Try again tomorrow or check your API plan: https://ai.google.dev/gemini-api/docs/rate-limits'
-      );
+      throw new Error('Gemini daily request limit reached. Try again tomorrow or check your API plan: https://ai.google.dev/gemini-api/docs/rate-limits');
     }
     throw lastErr;
   }
@@ -228,26 +345,26 @@ Respond with a single JSON object only, no markdown or extra text. In eyeAnalysi
   let parsed;
   try {
     parsed = JSON.parse(jsonStr);
-  } catch (parseErr) {
-    // Gemini sometimes returns truncated or invalid JSON (unescaped newlines in strings)
+  } catch {
     const fixed = tryFixJsonString(jsonStr);
-    try {
-      parsed = JSON.parse(fixed);
-    } catch {
-      parsed = extractJsonFields(jsonStr);
-    }
+    try { parsed = JSON.parse(fixed); } catch { parsed = extractJsonFields(jsonStr); }
   }
 
   return {
     sicknessProbability: Number(parsed.sicknessProbability) || 0,
+    allergyProbability: Number(parsed.allergyProbability) || 0,
     symptoms: Array.isArray(parsed.symptoms) ? parsed.symptoms : [],
     eyeAnalysis: parsed.eyeAnalysis,
     environmentalFactors: parsed.environmentalFactors,
     recommendations: parsed.recommendations,
     severity: parsed.severity || 'unknown',
     shouldSeeDoctor: Boolean(parsed.shouldSeeDoctor),
+    isUnilateral: Boolean(parsed.isUnilateral),
+    dischargeType: parsed.dischargeType || 'unknown',
   };
 }
+
+/* ═══════════════  ROUTES  ═══════════════ */
 
 /** POST /analyze — JSON body: imageBase64, imageMediaType, latitude, longitude, optional voiceBase64 + voiceMediaType */
 app.post('/analyze', async (req, res) => {
@@ -266,42 +383,82 @@ app.post('/analyze', async (req, res) => {
     });
 
     if (!imageBase64 || Number.isNaN(lat) || Number.isNaN(lon)) {
-      return res.status(400).json({
-        error: 'Missing required fields: imageBase64, latitude, longitude',
-      });
+      return res.status(400).json({ error: 'Missing required fields: imageBase64, latitude, longitude' });
     }
 
-    const pollen = await getPollenForecast(lat, lon);
-    const pollenSummary =
-      pollen.error ?
-        `Error: ${pollen.error}`
-      : JSON.stringify(pollen, null, 2);
+    let voiceBuffer = null;
+    if (voiceBase64) {
+      const raw = toRawBase64(voiceBase64);
+      voiceBuffer = Buffer.from(raw, 'base64');
+    }
 
-    console.log('[/analyze] Calling Gemini (with voice:', !!voiceBase64, ')');
-    const result = await analyzeWithGemini({
+    const [environmentalData, voiceAnalysis] = await Promise.all([
+      getGooglePollenData(lat, lon),
+      analyzeVoice(voiceBuffer, 'recording.m4a', voiceMimeType),
+    ]);
+
+    console.log('[/analyze] Calling Gemini (voice:', !!voiceAnalysis, ', pollen:', !environmentalData?.error, ')');
+
+    const aiAnalysis = await analyzeWithGemini({
       imageBase64,
       imageMediaType,
-      pollenSummary,
+      environmentalData,
       lat,
       lon,
-      voiceBase64,
-      voiceMimeType,
+      voiceAnalysis,
     });
+
+    const result = {
+      ...aiAnalysis,
+      environmental: environmentalData,
+      voice: voiceAnalysis,
+      location: { latitude: lat, longitude: lon },
+      timestamp: new Date().toISOString(),
+    };
 
     res.json(result);
   } catch (err) {
     console.error('Analyze error:', err);
-    res.status(500).json({
-      error: err.message || 'Analysis failed',
-    });
+    res.status(500).json({ error: err.message || 'Analysis failed' });
   }
 });
 
 app.get('/health', (_, res) => res.json({ ok: true }));
 
+app.get('/pollen', async (req, res) => {
+  try {
+    const lat = parseFloat(req.query.lat);
+    const lon = parseFloat(req.query.lon);
+    if (Number.isNaN(lat) || Number.isNaN(lon)) {
+      return res.status(400).json({ error: 'Missing or invalid query parameters: lat, lon', example: '/pollen?lat=37.7749&lon=-122.4194' });
+    }
+    const data = await getGooglePollenData(lat, lon);
+    res.json(data);
+  } catch (err) {
+    console.error('Pollen data error:', err);
+    res.status(500).json({ error: err.message || 'Failed to fetch pollen data' });
+  }
+});
+
+app.get('/environmental', async (req, res) => {
+  try {
+    const lat = parseFloat(req.query.lat);
+    const lon = parseFloat(req.query.lon);
+    if (Number.isNaN(lat) || Number.isNaN(lon)) {
+      return res.status(400).json({ error: 'Missing or invalid query parameters: lat, lon', example: '/environmental?lat=37.7749&lon=-122.4194' });
+    }
+    const data = await getGooglePollenData(lat, lon);
+    res.json(data);
+  } catch (err) {
+    console.error('Environmental data error:', err);
+    res.status(500).json({ error: err.message || 'Failed to fetch pollen data' });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Backend running at http://localhost:${PORT}`);
   console.log(`On a device? Use your computer IP, e.g. http://<YOUR_IP>:${PORT}`);
-  if (!GEMINI_API_KEY) console.warn('GEMINI_API_KEY not set — analysis will fail');
-  if (!GOOGLE_POLLEN_KEY) console.warn('GOOGLE_POLLEN_API_KEY not set — pollen data disabled');
+  console.log('Using Google Pollen API for pollen forecast data');
+  if (!GEMINI_API_KEY) console.warn('⚠️  GEMINI_API_KEY not set — analysis will fail');
+  if (!GOOGLE_POLLEN_KEY) console.warn('⚠️  GOOGLE_POLLEN_API_KEY not set — pollen data will be unavailable');
 });

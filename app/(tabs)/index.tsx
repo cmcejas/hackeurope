@@ -350,6 +350,19 @@ export default function HomeScreen() {
             </View>
           </View>
 
+          {/* Allergy probability if available */}
+          {analysisResult.allergyProbability != null && analysisResult.allergyProbability > 0 && (
+            <View style={styles.resultCard}>
+              <View style={styles.resultCardHeader}>
+                <Text style={styles.resultCardIcon}>🤧</Text>
+                <Text style={styles.resultCardTitle}>Allergy Probability</Text>
+              </View>
+              <Text style={styles.resultCardBody}>
+                {analysisResult.allergyProbability}% chance symptoms are allergy-related
+              </Text>
+            </View>
+          )}
+
           {/* Symptoms */}
           {analysisResult.symptoms && analysisResult.symptoms.length > 0 && (
             <View style={styles.resultCard}>
@@ -405,7 +418,23 @@ export default function HomeScreen() {
             <View style={styles.doctorBanner}>
               <Text style={styles.doctorBannerIcon}>⚠️</Text>
               <Text style={styles.doctorBannerText}>
-                Based on these results, we recommend consulting a healthcare professional.
+                {analysisResult.isUnilateral
+                  ? 'Unilateral redness detected — please seek urgent medical attention.'
+                  : 'Based on these results, we recommend consulting a healthcare professional.'}
+              </Text>
+            </View>
+          )}
+
+          {/* Voice analysis if available */}
+          {analysisResult.voice && !analysisResult.voice.error && (
+            <View style={styles.resultCard}>
+              <View style={styles.resultCardHeader}>
+                <Text style={styles.resultCardIcon}>🎙️</Text>
+                <Text style={styles.resultCardTitle}>Voice Analysis</Text>
+              </View>
+              <Text style={styles.resultCardBody}>
+                Nasality: {analysisResult.voice.nasality_score}/100 — {analysisResult.voice.interpretation}
+                {analysisResult.voice.suggests_congestion ? '\nSuggests nasal congestion.' : ''}
               </Text>
             </View>
           )}
