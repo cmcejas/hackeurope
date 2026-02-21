@@ -43,4 +43,6 @@ export type Step = 'menu' | 'camera' | 'recording' | 'analyzing' | 'results';
 export interface LocationCoords {
   latitude: number;
   longitude: number;
+  /** Human-readable place name from Google Maps (when available). */
+  displayName?: string;
 }

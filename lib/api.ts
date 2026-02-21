@@ -24,6 +24,8 @@ export interface AnalyzePayload {
   voiceMediaType?: string;
   latitude: number;
   longitude: number;
+  /** Optional: user-provided allergy history and symptoms (sent to AI). */
+  allergyHistory?: string | null;
 }
 
 /**
@@ -40,6 +42,9 @@ export async function analyzeHealth(payload: AnalyzePayload): Promise<AnalysisRe
   if (payload.voiceBase64) {
     body.voiceBase64 = payload.voiceBase64;
     body.voiceMediaType = payload.voiceMediaType || 'audio/m4a';
+  }
+  if (payload.allergyHistory?.trim()) {
+    body.allergyHistory = payload.allergyHistory.trim();
   }
 
   const response = await fetch(`${API_URL}/analyze`, {

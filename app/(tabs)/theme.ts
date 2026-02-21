@@ -1,23 +1,24 @@
 /**
- * Apple-inspired design tokens — dark mode, system blue accent.
+ * Modern health-app design system — light, warm, editorial.
  */
 export const colors = {
-  background: '#000000',
-  surface: '#1C1C1E',
-  surfaceElevated: '#2C2C2E',
-  surfaceSecondary: '#38383A',
-  text: '#FFFFFF',
-  textSecondary: '#8E8E93',
-  textTertiary: '#636366',
-  border: 'rgba(255,255,255,0.08)',
+  background: '#F8F7F5',
+  surface: '#FFFFFF',
+  surfaceSubtle: '#F2F1EF',
+  surfaceElevated: '#FFFFFF',
+  border: '#EBE9E6',
+  borderLight: '#F0EEEC',
 
-  primary: '#0A84FF',
-  primaryDark: '#0066CC',
-  success: '#30D158',
-  warning: '#FF9F0A',
-  danger: '#FF453A',
-  teal: '#64D2FF',
-  indigo: '#5E5CE6',
+  text: '#1A1A1A',
+  textSecondary: '#5C5C5C',
+  textTertiary: '#8E8E93',
+
+  primary: '#0D9488',
+  primaryHover: '#0F766E',
+  success: '#059669',
+  warning: '#D97706',
+  danger: '#DC2626',
+  dangerMuted: 'rgba(220, 38, 38, 0.08)',
 
   onPrimary: '#FFFFFF',
 } as const;
@@ -29,16 +30,20 @@ export const spacing = {
   lg: 24,
   xl: 32,
   xxl: 48,
-  safeTop: 60,
+  safeTop: 56,
 } as const;
 
 export const radii = {
-  sm: 12,
-  md: 16,
-  lg: 22,
-  xl: 28,
+  xs: 6,
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 24,
   pill: 9999,
 } as const;
+
+/** Max content width on desktop/tablet so layout doesn't stretch. */
+export const contentMaxWidth = 480;
 
 export function getSeverityColor(probability: number): string {
   if (probability < 30) return colors.success;

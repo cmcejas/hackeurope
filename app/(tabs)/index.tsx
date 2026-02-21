@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Text,
   View,
@@ -6,6 +6,10 @@ import {
   ActivityIndicator,
   ScrollView,
   Alert,
+  TextInput,
+  useWindowDimensions,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
 import { CameraView } from 'expo-camera';
 import { Audio } from 'expo-av';
@@ -15,7 +19,7 @@ import * as Location from 'expo-location';
 import { useHealthCheckPermissions } from '../../hooks/useHealthCheckPermissions';
 import { analyzeHealth, checkBackend } from '../../lib/api';
 import type { AnalysisResult, Step } from '../../lib/types';
-import { colors, getSeverityColor } from './theme';
+import { colors, getSeverityColor, contentMaxWidth } from './theme';
 import { styles } from './index.styles';
 
 const READ_ALOUD_SENTENCES = [
@@ -56,7 +60,10 @@ export default function HomeScreen() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [locationDisplayName, setLocationDisplayName] = useState<string | null>(null);
+  const [allergyHistoryText, setAllergyHistoryText] = useState('');
+  const [tileIndex, setTileIndex] = useState(0);
+  const { width: screenWidth } = useWindowDimensions();
+  const contentWidth = Math.min(screenWidth, contentMaxWidth);
 
   /* ── Actions ── */
 
@@ -162,6 +169,7 @@ export default function HomeScreen() {
         voiceMediaType: 'audio/m4a',
         latitude: lat,
         longitude: lon,
+        allergyHistory: allergyHistoryText.trim() || undefined,
       });
       setAnalysisError(null);
       setAnalysisResult(result);
@@ -186,32 +194,6 @@ export default function HomeScreen() {
     if (ok) setStep('camera');
   };
 
-  // Resolve coordinates to a human-readable place name when we have results
-  useEffect(() => {
-    const loc = analysisResult?.location;
-    if (!loc) {
-      setLocationDisplayName(null);
-      return;
-    }
-    let cancelled = false;
-    Location.reverseGeocodeAsync({ latitude: loc.latitude, longitude: loc.longitude })
-      .then((addresses) => {
-        if (cancelled || !addresses?.length) return;
-        const a = addresses[0];
-        const name =
-          a.formattedAddress?.trim() ||
-          [a.name, a.street, a.district, a.city, a.region, a.country].filter(Boolean).join(', ') ||
-          null;
-        if (!cancelled && name) setLocationDisplayName(name);
-      })
-      .catch(() => {
-        if (!cancelled) setLocationDisplayName(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [analysisResult?.location?.latitude, analysisResult?.location?.longitude]);
-
   const reset = () => {
     setStep('menu');
     setCameraReady(false);
@@ -219,48 +201,56 @@ export default function HomeScreen() {
     setReadAloudSentence('');
     setVoiceUri(null);
     setAnalysisResult(null);
-    setLocationDisplayName(null);
     setAnalysisError(null);
+    setAllergyHistoryText('');
+  };
+
+  const onTilesScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const x = e.nativeEvent.contentOffset.x;
+    const index = Math.round(x / contentWidth);
+    setTileIndex(Math.min(2, Math.max(0, index)));
   };
 
   /* ═══════════════  CAMERA  ═══════════════ */
   if (step === 'camera') {
     return (
       <View style={styles.container}>
-        <View style={styles.stepHeader}>
-          <Text style={styles.stepLabel}>Step 1 of 2</Text>
-          <Text style={styles.stepTitle}>Eye Photo</Text>
-        </View>
-        <StepDots current={0} />
-
-        {cameraPermission?.granted ? (
-          <View style={{ flex: 1, paddingHorizontal: 20 }}>
-            <CameraView
-              ref={cameraRef}
-              style={styles.camera}
-              facing="front"
-              onCameraReady={() => setCameraReady(true)}
-            />
+        <View style={styles.contentWrap}>
+          <View style={styles.stepHeader}>
+            <Text style={styles.stepLabel}>Step 1 of 2</Text>
+            <Text style={styles.stepTitle}>Eye Photo</Text>
           </View>
-        ) : (
-          <View style={styles.permissionFailed}>
-            <Text style={styles.permissionFailedText}>Camera permission not granted</Text>
-          </View>
-        )}
+          <StepDots current={0} />
 
-        <View style={styles.bottomBar}>
-          <TouchableOpacity style={[styles.pillButton, styles.pillSecondary]} onPress={reset}>
-            <Text style={styles.pillText}>Cancel</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={captureEyePhoto}
-            disabled={!cameraReady}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.captureRing, !cameraReady && styles.pillDisabled]}>
-              <View style={[styles.captureInner, !cameraReady && styles.captureInnerDisabled]} />
+          {cameraPermission?.granted ? (
+            <View style={{ flex: 1, paddingHorizontal: 20 }}>
+              <CameraView
+                ref={cameraRef}
+                style={styles.camera}
+                facing="front"
+                onCameraReady={() => setCameraReady(true)}
+              />
             </View>
-          </TouchableOpacity>
+          ) : (
+            <View style={styles.permissionFailed}>
+              <Text style={styles.permissionFailedText}>Camera permission not granted</Text>
+            </View>
+          )}
+
+          <View style={styles.bottomBar}>
+            <TouchableOpacity style={[styles.pillButton, styles.pillSecondary]} onPress={reset}>
+              <Text style={styles.pillText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={captureEyePhoto}
+              disabled={!cameraReady}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.captureRing, !cameraReady && styles.pillDisabled]}>
+                <View style={[styles.captureInner, !cameraReady && styles.captureInnerDisabled]} />
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     );
@@ -270,13 +260,14 @@ export default function HomeScreen() {
   if (step === 'recording') {
     return (
       <View style={styles.container}>
-        <View style={styles.stepHeader}>
-          <Text style={styles.stepLabel}>Step 2 of 2</Text>
-          <Text style={styles.stepTitle}>Voice Sample</Text>
-        </View>
-        <StepDots current={1} />
+        <View style={styles.contentWrap}>
+          <View style={styles.stepHeader}>
+            <Text style={styles.stepLabel}>Step 2 of 2</Text>
+            <Text style={styles.stepTitle}>Voice Sample</Text>
+          </View>
+          <StepDots current={1} />
 
-        <View style={styles.recordingContainer}>
+          <View style={styles.recordingContainer}>
           <View style={[styles.micCircle, isRecording && styles.micCircleActive]}>
             <Text style={styles.micIcon}>{isRecording ? '🔴' : '🎙️'}</Text>
           </View>
@@ -308,6 +299,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           )}
         </View>
+        </View>
       </View>
     );
   }
@@ -316,13 +308,14 @@ export default function HomeScreen() {
   if (step === 'analyzing') {
     return (
       <View style={styles.container}>
-        <View style={styles.stepHeader}>
-          <Text style={styles.stepLabel}>Processing</Text>
-          <Text style={styles.stepTitle}>Analyzing</Text>
-        </View>
-        <StepDots current={2} />
+        <View style={styles.contentWrap}>
+          <View style={styles.stepHeader}>
+            <Text style={styles.stepLabel}>Processing</Text>
+            <Text style={styles.stepTitle}>Analyzing</Text>
+          </View>
+          <StepDots current={2} />
 
-        <View style={styles.analyzingContainer}>
+          <View style={styles.analyzingContainer}>
           {analysisError ? (
             <>
               <Text style={styles.errorText}>{analysisError}</Text>
@@ -348,6 +341,7 @@ export default function HomeScreen() {
             </>
           )}
         </View>
+        </View>
       </View>
     );
   }
@@ -359,6 +353,7 @@ export default function HomeScreen() {
 
     return (
       <View style={styles.container}>
+        <View style={styles.contentWrap}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.heroSection}>
             <Text style={styles.heroTitle}>Results</Text>
@@ -372,6 +367,9 @@ export default function HomeScreen() {
                 <Text style={styles.resultPercentSign}>%</Text>
               </Text>
             </View>
+            <Text style={[styles.resultSeveritySubtext, { color: sevColor }]}>
+              {prob}% chance of being sick, likely {analysisResult.severity ?? 'unknown'}.
+            </Text>
             <View style={[styles.resultSeverityPill, { backgroundColor: `${sevColor}20` }]}>
               <Text style={[styles.resultSeverityText, { color: sevColor }]}>
                 {analysisResult.severity ?? 'unknown'}
@@ -379,18 +377,24 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* Allergy probability if available */}
-          {analysisResult.allergyProbability != null && analysisResult.allergyProbability > 0 && (
-            <View style={styles.resultCard}>
-              <View style={styles.resultCardHeader}>
-                <Text style={styles.resultCardIcon}>🤧</Text>
-                <Text style={styles.resultCardTitle}>Allergy Probability</Text>
+          {/* Allergy: only show when sickness is non-trivial and allergy % is consistent */}
+          {(() => {
+            const sick = analysisResult.sicknessProbability ?? 0;
+            const allergy = analysisResult.allergyProbability ?? 0;
+            const showAllergy = sick >= 15 && allergy > 0 && allergy <= sick;
+            if (!showAllergy) return null;
+            return (
+              <View style={styles.resultCard}>
+                <View style={styles.resultCardHeader}>
+                  <Text style={styles.resultCardIcon}>🤧</Text>
+                  <Text style={styles.resultCardTitle}>Allergy</Text>
+                </View>
+                <Text style={styles.resultCardBody}>
+                  {allergy}% chance that the symptoms are allergy-related (e.g. pollen).
+                </Text>
               </View>
-              <Text style={styles.resultCardBody}>
-                {analysisResult.allergyProbability}% chance symptoms are allergy-related
-              </Text>
-            </View>
-          )}
+            );
+          })()}
 
           {/* Symptoms */}
           {analysisResult.symptoms && analysisResult.symptoms.length > 0 && (
@@ -420,28 +424,16 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* Location (place name; coordinates as fallback) */}
-          {analysisResult.location && (
-            <View style={styles.resultCard}>
-              <View style={styles.resultCardHeader}>
-                <Text style={styles.resultCardIcon}>📍</Text>
-                <Text style={styles.resultCardTitle}>Your location</Text>
-              </View>
-              <Text style={styles.resultCardBody}>
-                {locationDisplayName ||
-                  `${Number(analysisResult.location.latitude).toFixed(6)}, ${Number(analysisResult.location.longitude).toFixed(6)}`}
-              </Text>
-            </View>
-          )}
-
-          {/* Environmental */}
+          {/* In your area (pollen / environmental – location is used for this data only) */}
           {analysisResult.environmentalFactors && (
             <View style={styles.resultCard}>
               <View style={styles.resultCardHeader}>
                 <Text style={styles.resultCardIcon}>🌿</Text>
-                <Text style={styles.resultCardTitle}>Environmental Factors</Text>
+                <Text style={styles.resultCardTitle}>In your area</Text>
               </View>
-              <Text style={styles.resultCardBody}>{analysisResult.environmentalFactors}</Text>
+              <Text style={styles.resultCardBody}>
+                In your area, {analysisResult.environmentalFactors.replace(/^./, (c) => c.toLowerCase())}
+              </Text>
             </View>
           )}
 
@@ -486,14 +478,37 @@ export default function HomeScreen() {
             <Text style={styles.ctaButtonText}>Start New Check</Text>
           </TouchableOpacity>
         </ScrollView>
+        </View>
       </View>
     );
   }
 
   /* ═══════════════  MENU  ═══════════════ */
+  const TILES = [
+    {
+      icon: '👁️',
+      title: 'Eye Scan',
+      desc: 'We check your eyes for redness, puffiness, and discoloration using your camera.',
+      iconBg: `${colors.primary}14`,
+    },
+    {
+      icon: '🎙️',
+      title: 'Voice Analysis',
+      desc: 'A short voice sample helps us detect congestion, hoarseness, or strain.',
+      iconBg: `${colors.warning}18`,
+    },
+    {
+      icon: '🌿',
+      title: 'Pollen & area',
+      desc: 'Local allergen levels from your area are included in your assessment.',
+      iconBg: `${colors.success}18`,
+    },
+  ];
+
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <View style={styles.contentWrap}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.heroSection}>
           <Text style={styles.heroTitle}>Health Check</Text>
           <Text style={styles.heroSubtitle}>
@@ -501,42 +516,67 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        <View style={styles.featureGrid}>
-          <View style={styles.featureCard}>
-            <View style={[styles.featureIcon, { backgroundColor: 'rgba(10,132,255,0.15)' }]}>
-              <Text style={{ fontSize: 22 }}>👁️</Text>
-            </View>
-            <View style={styles.featureCardContent}>
-              <Text style={styles.featureCardTitle}>Eye Scan</Text>
-              <Text style={styles.featureCardDesc}>Checks redness, puffiness, and discoloration</Text>
-            </View>
+        {/* Swipeable onboarding tiles */}
+        <View style={styles.tileCarouselWrap}>
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onScroll={onTilesScroll}
+            scrollEventThrottle={32}
+            decelerationRate="fast"
+            contentContainerStyle={styles.tileCarouselContent}
+            style={[styles.tileCarousel, { width: contentWidth }]}
+          >
+            {TILES.map((tile) => (
+              <View key={tile.title} style={[styles.tileCard, { width: contentWidth }]}>
+                <View style={styles.tileCardInner}>
+                  <View style={[styles.tileIcon, { backgroundColor: tile.iconBg }]}>
+                    <Text style={styles.tileIconEmoji}>{tile.icon}</Text>
+                  </View>
+                  <Text style={styles.tileTitle}>{tile.title}</Text>
+                  <Text style={styles.tileDesc}>{tile.desc}</Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+          <View style={styles.tilePagination}>
+            {TILES.map((_, i) => (
+              <View
+                key={i}
+                style={[styles.tileDot, i === tileIndex && styles.tileDotActive]}
+              />
+            ))}
           </View>
+        </View>
 
-          <View style={styles.featureCard}>
-            <View style={[styles.featureIcon, { backgroundColor: 'rgba(255,159,10,0.15)' }]}>
-              <Text style={{ fontSize: 22 }}>🎙️</Text>
-            </View>
-            <View style={styles.featureCardContent}>
-              <Text style={styles.featureCardTitle}>Voice Analysis</Text>
-              <Text style={styles.featureCardDesc}>Detects congestion, hoarseness, and strain</Text>
-            </View>
-          </View>
-
-          <View style={styles.featureCard}>
-            <View style={[styles.featureIcon, { backgroundColor: 'rgba(48,209,88,0.15)' }]}>
-              <Text style={{ fontSize: 22 }}>🌿</Text>
-            </View>
-            <View style={styles.featureCardContent}>
-              <Text style={styles.featureCardTitle}>Pollen Report</Text>
-              <Text style={styles.featureCardDesc}>Local allergen levels from your area</Text>
-            </View>
-          </View>
+        {/* Allergy / symptom history (optional) */}
+        <View style={styles.allergySection}>
+          <Text style={styles.allergyLabel}>Allergy & symptom history (optional)</Text>
+          <Text style={styles.allergyHint}>
+            E.g. hay fever, itchy eyes in spring, asthma, known allergens. This is sent to the AI to improve your assessment.
+          </Text>
+          <TextInput
+            style={styles.allergyInput}
+            placeholder="e.g. Pollen allergy, itchy eyes in summer, allergic to grass..."
+            placeholderTextColor={colors.textTertiary}
+            value={allergyHistoryText}
+            onChangeText={setAllergyHistoryText}
+            multiline
+            numberOfLines={3}
+            maxLength={500}
+            textAlignVertical="top"
+          />
+          {allergyHistoryText.length > 0 && (
+            <Text style={styles.allergyCharCount}>{allergyHistoryText.length}/500</Text>
+          )}
         </View>
 
         <TouchableOpacity style={styles.ctaButton} onPress={startCheck} activeOpacity={0.8}>
           <Text style={styles.ctaButtonText}>Begin Health Check</Text>
         </TouchableOpacity>
       </ScrollView>
+      </View>
     </View>
   );
 }

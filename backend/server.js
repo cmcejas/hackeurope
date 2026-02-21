@@ -8,10 +8,31 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GOOGLE_POLLEN_KEY = process.env.GOOGLE_POLLEN_API_KEY;
+const GOOGLE_MAPS_KEY = process.env.GOOGLE_MAPS_API_KEY || GOOGLE_POLLEN_KEY;
 const VOICE_SERVICE_URL = process.env.VOICE_SERVICE_URL || 'http://localhost:3002';
 
 app.use(cors());
 app.use(express.json({ limit: '30mb' }));
+
+/* ═══════════════  REVERSE GEOCODING (Google Maps)  ═══════════════ */
+
+/**
+ * Reverse geocode lat/lon to a human-readable address using Google Geocoding API.
+ * Returns the first result's formatted_address, or null if unavailable.
+ */
+async function reverseGeocodeWithGoogle(lat, lon) {
+  if (!GOOGLE_MAPS_KEY) return null;
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${GOOGLE_MAPS_KEY}`;
+  try {
+    const res = await fetch(url, { method: 'GET' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const addr = data.results?.[0]?.formatted_address;
+    return typeof addr === 'string' ? addr.trim() : null;
+  } catch {
+    return null;
+  }
+}
 
 /* ═══════════════  POLLEN  ═══════════════ */
 
@@ -213,7 +234,7 @@ function extractJsonFields(str) {
 
 /* ═══════════════  GEMINI  ═══════════════ */
 
-async function analyzeWithGemini({ imageBase64, imageMediaType, environmentalData, lat, lon, voiceAnalysis }) {
+async function analyzeWithGemini({ imageBase64, imageMediaType, environmentalData, lat, lon, voiceAnalysis, allergyHistory }) {
   if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set');
 
   const rawBase64 = toRawBase64(imageBase64);
@@ -259,16 +280,20 @@ ${envSummary}
 4. **Voice Recording Analysis**:
 ${voiceSummary}
 
+5. **User-provided allergy / symptom history** (if any):
+${allergyHistory && allergyHistory.trim() ? allergyHistory.trim() : 'None provided.'}
+
 **IMPORTANT SAFETY RULES**:
 - If redness is UNILATERAL (one eye only), set "shouldSeeDoctor": true and flag as urgent
 - If purulent discharge is present, recommend immediate medical consultation
 - Consider environmental pollen levels when assessing allergy probability
 - Focus on sickness indicators only (not skin blemishes, acne, etc.)
+- **allergyProbability** must be consistent with sicknessProbability: it is the share of the assessed illness that you attribute to allergy (e.g. allergic conjunctivitis). When sicknessProbability is low (e.g. under 20), set allergyProbability low or 0. allergyProbability must not exceed sicknessProbability.
 
 Respond with a single JSON object only, no markdown or extra text:
 {
   "sicknessProbability": <0-100>,
-  "allergyProbability": <0-100>,
+  "allergyProbability": <0-100, must be <= sicknessProbability; 0 when sickness is low>,
   "symptoms": ["symptom1", "symptom2"],
   "eyeAnalysis": "detailed clinical description including laterality (bilateral/unilateral) and discharge type",
   "environmentalFactors": "summarize pollen and air quality impact on symptoms",
@@ -350,9 +375,14 @@ Respond with a single JSON object only, no markdown or extra text:
     try { parsed = JSON.parse(fixed); } catch { parsed = extractJsonFields(jsonStr); }
   }
 
+  const sicknessProbability = Number(parsed.sicknessProbability) || 0;
+  let allergyProbability = parsed.allergyProbability != null ? Number(parsed.allergyProbability) || 0 : undefined;
+  if (allergyProbability != null && allergyProbability > sicknessProbability) {
+    allergyProbability = sicknessProbability;
+  }
   return {
-    sicknessProbability: Number(parsed.sicknessProbability) || 0,
-    allergyProbability: parsed.allergyProbability != null ? Number(parsed.allergyProbability) || 0 : undefined,
+    sicknessProbability,
+    allergyProbability,
     symptoms: Array.isArray(parsed.symptoms) ? parsed.symptoms : [],
     eyeAnalysis: parsed.eyeAnalysis != null ? String(parsed.eyeAnalysis) : undefined,
     environmentalFactors: parsed.environmentalFactors != null ? String(parsed.environmentalFactors) : undefined,
@@ -399,6 +429,7 @@ app.post('/analyze', async (req, res) => {
 
     console.log('[/analyze] Calling Gemini (voice:', !!voiceAnalysis, ', pollen:', !environmentalData?.error, ')');
 
+    const allergyHistory = typeof req.body?.allergyHistory === 'string' ? req.body.allergyHistory : '';
     const aiAnalysis = await analyzeWithGemini({
       imageBase64,
       imageMediaType,
@@ -406,14 +437,20 @@ app.post('/analyze', async (req, res) => {
       lat,
       lon,
       voiceAnalysis,
+      allergyHistory,
     });
 
     const round6 = (n) => Math.round(n * 1e6) / 1e6;
+    const displayName = await reverseGeocodeWithGoogle(lat, lon);
     const result = {
       ...aiAnalysis,
       environmental: environmentalData,
       voice: voiceAnalysis,
-      location: { latitude: round6(lat), longitude: round6(lon) },
+      location: {
+        latitude: round6(lat),
+        longitude: round6(lon),
+        ...(displayName && { displayName }),
+      },
       timestamp: new Date().toISOString(),
     };
 
