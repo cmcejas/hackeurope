@@ -21,7 +21,7 @@ export default function Root({ children }: PropsWithChildren) {
 
 const rootStyle = `
 html, body {
-  background-color: #1a1a1a;
+  background-color: #1C1C1E;
   -webkit-font-smoothing: antialiased;
 }
 body {

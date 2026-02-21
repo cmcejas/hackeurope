@@ -11,6 +11,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView } from 'expo-camera';
 import { Audio } from 'expo-av';
@@ -67,6 +68,7 @@ export default function HomeScreen() {
   const [tileIndex, setTileIndex] = useState(0);
   const { width: screenWidth } = useWindowDimensions();
   const contentWidth = Math.min(screenWidth, contentMaxWidth);
+  const router = useRouter();
 
   /* ── Actions ── */
 
@@ -512,19 +514,22 @@ export default function HomeScreen() {
       icon: 'eye-outline' as const,
       title: 'Eye Scan',
       desc: 'We check your eyes for redness, puffiness, and discoloration using your camera.',
-      iconBg: `${colors.primary}14`,
+      iconBg: colors.primaryMuted,
+      iconColor: colors.primary,
     },
     {
       icon: 'mic-outline' as const,
       title: 'Voice Analysis',
       desc: 'A short voice sample helps us detect congestion, hoarseness, or strain.',
-      iconBg: `${colors.warning}18`,
+      iconBg: colors.primaryMuted,
+      iconColor: colors.primary,
     },
     {
       icon: 'leaf-outline' as const,
       title: 'Pollen & area',
       desc: 'Local allergen levels from your area are included in your assessment.',
-      iconBg: `${colors.success}18`,
+      iconBg: colors.successMuted,
+      iconColor: colors.success,
     },
   ];
 
@@ -534,7 +539,22 @@ export default function HomeScreen() {
       <View style={styles.contentWrap}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.heroSection}>
-          <Text style={styles.heroTitle}>Health Check</Text>
+          <View style={styles.heroTopRow}>
+            <View style={styles.logoRow}>
+              <View style={styles.logoIcon}>
+                <Ionicons name="sparkles" size={28} color={colors.primary} />
+              </View>
+              <Text style={styles.heroTitle}>PollenCast</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.profileLink}
+              onPress={() => router.push('/(tabs)/profile')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="person-circle-outline" size={24} color={colors.primary} />
+              <Text style={styles.profileLinkText}>Profile</Text>
+            </TouchableOpacity>
+          </View>
           <Text style={styles.heroSubtitle}>
             Quick AI-powered screening using your camera, voice, and local pollen data.
           </Text>
@@ -556,7 +576,7 @@ export default function HomeScreen() {
               <View key={tile.title} style={[styles.tileCard, { width: contentWidth }]}>
                 <GlassCard style={styles.tileCardInner}>
                   <View style={[styles.tileIcon, { backgroundColor: tile.iconBg }]}>
-                    <Ionicons name={tile.icon} size={28} color={colors.text} />
+                    <Ionicons name={tile.icon} size={28} color={tile.iconColor} />
                   </View>
                   <Text style={styles.tileTitle}>{tile.title}</Text>
                   <Text style={styles.tileDesc}>{tile.desc}</Text>

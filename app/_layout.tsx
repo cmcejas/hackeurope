@@ -64,7 +64,7 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <View style={{ flex: 1, backgroundColor: '#111015' }} onLayout={onLayoutRootView}>
+      <View style={{ flex: 1, backgroundColor: '#1C1C1E' }} onLayout={onLayoutRootView}>
         <RootLayoutNav />
       </View>
       <StatusBar style="light" />

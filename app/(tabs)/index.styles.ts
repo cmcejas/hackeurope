@@ -33,12 +33,44 @@ export const styles = StyleSheet.create({
     marginBottom: spacing.xl,
     paddingTop: spacing.sm,
   },
+  heroTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    width: '100%',
+    marginBottom: 8,
+  },
+  profileLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  profileLinkText: {
+    fontSize: 14,
+    fontFamily: fonts.semibold,
+    color: colors.primary,
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  logoIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: radii.md,
+    backgroundColor: colors.primaryMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
   heroTitle: {
     fontSize: 28,
     fontFamily: fonts.bold,
     color: colors.text,
     letterSpacing: -0.5,
-    marginBottom: 8,
   },
   heroSubtitle: {
     fontSize: 15,
@@ -257,7 +289,7 @@ export const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: colors.primary,
   },
   captureInnerDisabled: {
     backgroundColor: colors.border,
@@ -298,7 +330,7 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.danger,
   },
   pillSecondary: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -335,7 +367,7 @@ export const styles = StyleSheet.create({
   },
   micCircleActive: {
     backgroundColor: colors.dangerMuted,
-    borderColor: 'rgba(220, 38, 38, 0.25)',
+    borderColor: 'rgba(231, 76, 60, 0.25)',
   },
   recordingLabel: {
     fontSize: 20,
@@ -464,14 +496,14 @@ export const styles = StyleSheet.create({
     lineHeight: 21,
   },
   symptomChip: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.primaryMuted,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: radii.pill,
     marginRight: 8,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: 'rgba(245, 166, 35, 0.18)',
   },
   symptomChipText: {
     fontSize: 13,
@@ -487,7 +519,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     borderWidth: 1,
-    borderColor: 'rgba(220, 38, 38, 0.2)',
+    borderColor: 'rgba(231, 76, 60, 0.2)',
   },
   doctorBannerText: {
     flex: 1,

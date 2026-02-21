@@ -4,13 +4,10 @@ import { View, StyleSheet } from 'react-native';
 const styles = StyleSheet.create({
   fill: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#1C1C1E',
   },
 });
 
-/**
- * Solid #1a1a1a background. Renders as a layer behind content.
- */
 export function GradientBackground() {
   return <View style={styles.fill} />;
 }

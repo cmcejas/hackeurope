@@ -13,6 +13,12 @@ export default function TabLayout() {
           title: 'Home',
         }}
       />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+        }}
+      />
     </Tabs>
   );
 }

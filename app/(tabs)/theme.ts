@@ -1,30 +1,33 @@
 /**
- * Dark #1a1a1a background with teal accent.
+ * Dark background with warm amber/gold accent — PollenCast.
  */
 export const colors = {
+  bg: '#1C1C1E',
   background: 'transparent',
   surface: 'rgba(255, 255, 255, 0.06)',
   surfaceSubtle: 'rgba(255, 255, 255, 0.04)',
   surfaceElevated: 'rgba(255, 255, 255, 0.09)',
-  border: 'rgba(255, 255, 255, 0.1)',
+  border: 'rgba(255, 255, 255, 0.10)',
   borderLight: 'rgba(255, 255, 255, 0.06)',
 
-  text: '#F1F5F9',
-  textSecondary: '#94A3B8',
-  textTertiary: '#64748B',
+  text: '#F5F0E8',
+  textSecondary: '#A89F91',
+  textTertiary: '#6B6359',
 
-  primary: '#14B8A6',
-  primaryHover: '#0D9488',
-  secondary: '#1a1a1a',
-  accentStripe: '#2DD4BF',
+  primary: '#F5A623',
+  primaryHover: '#E69517',
+  primaryMuted: 'rgba(245, 166, 35, 0.14)',
+  secondary: '#1C1C1E',
+  accentStripe: '#FFCC02',
 
-  success: '#10B981',
-  warning: '#EAB308',
-  danger: '#F43F5E',
-  dangerMuted: 'rgba(244, 63, 94, 0.14)',
+  success: '#5CB85C',
+  successMuted: 'rgba(92, 184, 92, 0.14)',
+  warning: '#F5A623',
+  danger: '#E74C3C',
+  dangerMuted: 'rgba(231, 76, 60, 0.14)',
 
-  onPrimary: '#FFFFFF',
-  onSecondary: '#FFFFFF',
+  onPrimary: '#1C1C1E',
+  onSecondary: '#F5F0E8',
 } as const;
 
 export const spacing = {

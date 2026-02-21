@@ -39,6 +39,6 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
   },
   webFill: {
-    backgroundColor: 'rgba(30, 30, 30, 0.85)',
+    backgroundColor: 'rgba(30, 30, 32, 0.92)',
   },
 });
