@@ -192,7 +192,12 @@ export default function HomeScreen() {
           <Text style={styles.recordingText}>
             {isRecording ? '🔴 Recording...' : 'Ready to record'}
           </Text>
-          <Text style={styles.instructionText}>Describe how you are feeling</Text>
+          <Text style={styles.instructionText}>
+            Speak for 5-10 seconds describing your symptoms
+          </Text>
+          <Text style={[styles.instructionText, { marginTop: 8, fontSize: 14, color: '#999' }]}>
+            For best results, say words with nasal sounds like "morning", "sneezing", "congestion"
+          </Text>
         </View>
         <View style={styles.buttonRow}>
           <TouchableOpacity
@@ -289,6 +294,68 @@ export default function HomeScreen() {
             </View>
           )}
 
+          {analysisResult.voice && !analysisResult.voice.error && (
+            <View style={styles.infoBox}>
+              <Text style={styles.infoTitle}>🎤 Voice Analysis</Text>
+              <View style={styles.voiceMetrics}>
+                <View style={styles.metricRow}>
+                  <Text style={styles.metricLabel}>Nasality Score:</Text>
+                  <Text style={[
+                    styles.metricValue,
+                    { color: analysisResult.voice.nasality_score > 70 ? '#FF3B30' :
+                             analysisResult.voice.nasality_score > 50 ? '#FF9500' : '#34C759' }
+                  ]}>
+                    {analysisResult.voice.nasality_score.toFixed(1)}/100
+                  </Text>
+                </View>
+                <View style={styles.metricRow}>
+                  <Text style={styles.metricLabel}>Confidence:</Text>
+                  <Text style={styles.metricValue}>{analysisResult.voice.confidence.toFixed(1)}%</Text>
+                </View>
+                <View style={styles.metricRow}>
+                  <Text style={styles.metricLabel}>Nasal Congestion:</Text>
+                  <Text style={[styles.metricValue, {
+                    color: analysisResult.voice.suggests_congestion ? '#FF9500' : '#34C759'
+                  }]}>
+                    {analysisResult.voice.suggests_congestion ? 'Detected' : 'Not detected'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.infoText, { marginTop: 12, fontStyle: 'italic' }]}>
+                {analysisResult.voice.interpretation}
+              </Text>
+              {analysisResult.voice.features && (
+                <View style={styles.technicalDetails}>
+                  <Text style={styles.technicalTitle}>Technical Details:</Text>
+                  <Text style={styles.technicalText}>
+                    Duration: {analysisResult.voice.features.duration_seconds.toFixed(1)}s
+                  </Text>
+                  {analysisResult.voice.features.spectral && (
+                    <>
+                      <Text style={styles.technicalText}>
+                        Spectral Centroid: {analysisResult.voice.features.spectral.spectral_centroid_mean.toFixed(0)} Hz
+                      </Text>
+                      {analysisResult.voice.features.formant_proxy && (
+                        <Text style={styles.technicalText}>
+                          Low/High Ratio: {analysisResult.voice.features.formant_proxy.low_to_high_ratio.toFixed(2)}
+                        </Text>
+                      )}
+                    </>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
+
+          {analysisResult.voice?.error && (
+            <View style={[styles.infoBox, { borderLeftColor: '#FF9500' }]}>
+              <Text style={[styles.infoTitle, { color: '#FF9500' }]}>🎤 Voice Analysis</Text>
+              <Text style={styles.infoText}>
+                Voice analysis unavailable: {analysisResult.voice.error}
+              </Text>
+            </View>
+          )}
+
           {analysisResult.eyeAnalysis && (
             <View style={styles.infoBox}>
               <Text style={styles.infoTitle}>👁️ Eye Analysis</Text>
@@ -341,8 +408,10 @@ export default function HomeScreen() {
           <Text style={styles.infoText}>We will analyze your eyes for signs of illness</Text>
         </View>
         <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>🎤 Voice Analysis</Text>
-          <Text style={styles.infoText}>We will use your voice for symptom context</Text>
+          <Text style={styles.infoTitle}>🎤 Voice Analysis (AI)</Text>
+          <Text style={styles.infoText}>
+            Advanced librosa-based analysis detects nasal congestion through voice biomarkers (MFCC, spectral features)
+          </Text>
         </View>
         <View style={styles.infoBox}>
           <Text style={styles.infoTitle}>🌍 Pollen Data</Text>
@@ -512,5 +581,41 @@ const styles = StyleSheet.create({
     color: '#FF3B30',
     textAlign: 'center',
     marginBottom: 12,
+  },
+  voiceMetrics: {
+    marginTop: 8,
+  },
+  metricRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  metricLabel: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  metricValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  technicalDetails: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#eee',
+  },
+  technicalTitle: {
+    fontSize: 12,
+    color: '#999',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  technicalText: {
+    fontSize: 11,
+    color: '#999',
+    marginBottom: 2,
   },
 });

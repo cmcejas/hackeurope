@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # Voice Analysis Service (Python/FastAPI/librosa)
+  voice-service:
+    build:
+      context: ./voice-service
+      dockerfile: Dockerfile
+    container_name: hackeurope-voice-service
+    ports:
+      - "3002:3002"
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Main Backend API (Node.js/Express)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    container_name: hackeurope-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_POLLEN_API_KEY=${GOOGLE_POLLEN_API_KEY}
+      - VOICE_SERVICE_URL=http://voice-service:3002
+    depends_on:
+      - voice-service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    volumes:
+      - .:/app
+      - /app/node_modules
+
+networks:
+  default:
+    name: hackeurope-network

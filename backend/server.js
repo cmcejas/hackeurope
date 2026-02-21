@@ -3,11 +3,13 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import fetch from 'node-fetch';
+import FormData from 'form-data';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GOOGLE_POLLEN_KEY = process.env.GOOGLE_POLLEN_API_KEY;
+const VOICE_SERVICE_URL = process.env.VOICE_SERVICE_URL || 'http://localhost:3002';
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -202,8 +204,47 @@ function toRawBase64(value) {
   return match ? match[1].trim() : value.trim();
 }
 
+/** Analyze voice recording using Python microservice with librosa */
+async function analyzeVoice(voiceFile) {
+  if (!voiceFile) {
+    return null;
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('audio', voiceFile.buffer, {
+      filename: voiceFile.originalname || 'recording.wav',
+      contentType: voiceFile.mimetype || 'audio/wav',
+    });
+
+    const response = await fetch(`${VOICE_SERVICE_URL}/analyze`, {
+      method: 'POST',
+      body: formData,
+      headers: formData.getHeaders(),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Voice service error:', response.status, errorText);
+      return {
+        error: `Voice analysis failed: ${response.status}`,
+        details: errorText
+      };
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (err) {
+    console.error('Voice analysis error:', err);
+    return {
+      error: 'Voice service unavailable',
+      details: err.message
+    };
+  }
+}
+
 /** Call Gemini with image + text and return structured health assessment */
-async function analyzeWithGemini({ imageBase64, imageMediaType, environmentalData, lat, lon, hasVoice }) {
+async function analyzeWithGemini({ imageBase64, imageMediaType, environmentalData, lat, lon, voiceAnalysis }) {
   if (!GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY not set');
   }
@@ -220,6 +261,23 @@ Plants in Season: ${environmentalData.pollen?.plantsInSeason?.map(p => p.name).j
 Allergy Risk: ${environmentalData.allergyRiskScore?.level || 'unknown'} (score: ${environmentalData.allergyRiskScore?.score || 0}/100)
 Source: Google Pollen API - ${environmentalData.period || 'multi-day'} forecast`;
 
+  // Format voice analysis data
+  let voiceSummary;
+  if (!voiceAnalysis) {
+    voiceSummary = 'No voice recording provided';
+  } else if (voiceAnalysis.error) {
+    voiceSummary = `Voice analysis unavailable: ${voiceAnalysis.error}`;
+  } else {
+    voiceSummary = `Voice Analysis (librosa):
+Nasality Score: ${voiceAnalysis.nasality_score}/100 (confidence: ${voiceAnalysis.confidence}%)
+Interpretation: ${voiceAnalysis.interpretation}
+Suggests Nasal Congestion: ${voiceAnalysis.suggests_congestion ? 'YES - consistent with allergic rhinitis' : 'NO'}
+Key Features:
+- Spectral Centroid: ${voiceAnalysis.features?.spectral?.spectral_centroid_mean?.toFixed(0) || 'N/A'} Hz
+- Low/High Frequency Ratio: ${voiceAnalysis.features?.formant_proxy?.low_to_high_ratio?.toFixed(2) || 'N/A'}
+- Duration: ${voiceAnalysis.features?.duration_seconds || 'N/A'} seconds`;
+  }
+
   const text = `You are a medical AI specializing in allergic conjunctivitis and ocular infections. Analyze the provided data:
 
 1. **Eye Photo**: Examine for:
@@ -233,7 +291,8 @@ Source: Google Pollen API - ${environmentalData.period || 'multi-day'} forecast`
 3. **Environmental Data (48h historical)**:
 ${envSummary}
 
-4. **Voice Recording**: ${hasVoice ? 'User provided voice sample (nasality analysis pending - consider this may indicate nasal congestion consistent with allergic rhinitis)' : 'No voice recording provided'}
+4. **Voice Recording Analysis**:
+${voiceSummary}
 
 **IMPORTANT SAFETY RULES**:
 - If redness is UNILATERAL (one eye only), set "shouldSeeDoctor": true and flag as urgent
@@ -315,7 +374,6 @@ app.post('/analyze', upload.single('voice'), async (req, res) => {
     const imageMediaType = (req.body?.imageMediaType || 'image/jpeg').trim();
     const lat = parseFloat(req.body?.latitude);
     const lon = parseFloat(req.body?.longitude);
-    const hasVoice = Boolean(req.file);
 
     if (!imageBase64 || Number.isNaN(lat) || Number.isNaN(lon)) {
       return res.status(400).json({
@@ -323,23 +381,27 @@ app.post('/analyze', upload.single('voice'), async (req, res) => {
       });
     }
 
-    // Fetch pollen data from Google Pollen API
-    const environmentalData = await getGooglePollenData(lat, lon);
+    // Analyze voice if provided (parallel with pollen data)
+    const [environmentalData, voiceAnalysis] = await Promise.all([
+      getGooglePollenData(lat, lon),
+      analyzeVoice(req.file)
+    ]);
 
-    // Perform AI analysis with environmental context
+    // Perform AI analysis with environmental and voice context
     const aiAnalysis = await analyzeWithGemini({
       imageBase64,
       imageMediaType,
       environmentalData,
       lat,
       lon,
-      hasVoice,
+      voiceAnalysis,
     });
 
-    // Combine AI analysis with environmental data for complete response
+    // Combine all analysis results
     const result = {
       ...aiAnalysis,
       environmental: environmentalData,
+      voice: voiceAnalysis,
       location: { latitude: lat, longitude: lon },
       timestamp: new Date().toISOString(),
     };
