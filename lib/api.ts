@@ -37,12 +37,10 @@ export async function analyzeHealth(payload: AnalyzePayload): Promise<AnalysisRe
     longitude: payload.longitude,
     imageBase64: payload.imageBase64,
     imageMediaType: payload.imageMediaType || 'image/jpeg',
+    voiceBase64: payload.voiceBase64 ?? null,
+    voiceMediaType: payload.voiceMediaType || 'audio/m4a',
   };
 
-  if (payload.voiceBase64) {
-    body.voiceBase64 = payload.voiceBase64;
-    body.voiceMediaType = payload.voiceMediaType || 'audio/m4a';
-  }
   if (payload.allergyHistory?.trim()) {
     body.allergyHistory = payload.allergyHistory.trim();
   }

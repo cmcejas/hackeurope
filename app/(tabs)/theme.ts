@@ -1,26 +1,30 @@
 /**
- * Modern health-app design system — light, warm, editorial.
+ * Dark #1a1a1a background with teal accent.
  */
 export const colors = {
-  background: '#F8F7F5',
-  surface: '#FFFFFF',
-  surfaceSubtle: '#F2F1EF',
-  surfaceElevated: '#FFFFFF',
-  border: '#EBE9E6',
-  borderLight: '#F0EEEC',
+  background: 'transparent',
+  surface: 'rgba(255, 255, 255, 0.06)',
+  surfaceSubtle: 'rgba(255, 255, 255, 0.04)',
+  surfaceElevated: 'rgba(255, 255, 255, 0.09)',
+  border: 'rgba(255, 255, 255, 0.1)',
+  borderLight: 'rgba(255, 255, 255, 0.06)',
 
-  text: '#1A1A1A',
-  textSecondary: '#5C5C5C',
-  textTertiary: '#8E8E93',
+  text: '#F1F5F9',
+  textSecondary: '#94A3B8',
+  textTertiary: '#64748B',
 
-  primary: '#0D9488',
-  primaryHover: '#0F766E',
-  success: '#059669',
-  warning: '#D97706',
-  danger: '#DC2626',
-  dangerMuted: 'rgba(220, 38, 38, 0.08)',
+  primary: '#14B8A6',
+  primaryHover: '#0D9488',
+  secondary: '#1a1a1a',
+  accentStripe: '#2DD4BF',
+
+  success: '#10B981',
+  warning: '#EAB308',
+  danger: '#F43F5E',
+  dangerMuted: 'rgba(244, 63, 94, 0.14)',
 
   onPrimary: '#FFFFFF',
+  onSecondary: '#FFFFFF',
 } as const;
 
 export const spacing = {
@@ -42,7 +46,7 @@ export const radii = {
   pill: 9999,
 } as const;
 
-/** Max content width on desktop/tablet so layout doesn't stretch. */
+/** Max content width on desktop/tablet. */
 export const contentMaxWidth = 480;
 
 export function getSeverityColor(probability: number): string {
@@ -50,3 +54,11 @@ export function getSeverityColor(probability: number): string {
   if (probability < 60) return colors.warning;
   return colors.danger;
 }
+
+/** Space Grotesk font family (load in root layout). */
+export const fonts = {
+  regular: 'SpaceGrotesk_400Regular',
+  medium: 'SpaceGrotesk_500Medium',
+  semibold: 'SpaceGrotesk_600SemiBold',
+  bold: 'SpaceGrotesk_700Bold',
+} as const;

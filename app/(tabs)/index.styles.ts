@@ -1,21 +1,20 @@
 import { Platform, StyleSheet } from 'react-native';
-import { colors, spacing, radii, contentMaxWidth } from './theme';
+import { colors, spacing, radii, contentMaxWidth, fonts } from './theme';
 
 const cardShadow =
   Platform.OS === 'ios'
     ? {
-        shadowColor: '#1A1A1A',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.04,
-        shadowRadius: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
       }
-    : { elevation: 2 };
+    : { elevation: 3 };
 
 export const styles = StyleSheet.create({
   /* ── Layout ── */
   container: {
     flex: 1,
-    backgroundColor: colors.background,
     alignItems: 'center',
   },
   contentWrap: {
@@ -36,14 +35,14 @@ export const styles = StyleSheet.create({
   },
   heroTitle: {
     fontSize: 28,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: colors.text,
     letterSpacing: -0.5,
     marginBottom: 8,
   },
   heroSubtitle: {
     fontSize: 15,
-    fontWeight: '400',
+    fontFamily: fonts.regular,
     color: colors.textSecondary,
     lineHeight: 22,
     maxWidth: 320,
@@ -66,13 +65,9 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tileCardInner: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
     padding: 24,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...cardShadow,
     alignItems: 'center',
+    ...cardShadow,
   },
   tileIcon: {
     width: 56,
@@ -82,18 +77,15 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.md,
   },
-  tileIconEmoji: {
-    fontSize: 28,
-  },
   tileTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.text,
     marginBottom: 8,
   },
   tileDesc: {
     fontSize: 14,
-    fontWeight: '400',
+    fontFamily: fonts.regular,
     color: colors.textSecondary,
     lineHeight: 21,
     textAlign: 'center',
@@ -121,19 +113,19 @@ export const styles = StyleSheet.create({
   },
   allergyLabel: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.text,
     marginBottom: 4,
   },
   allergyHint: {
     fontSize: 13,
-    fontWeight: '400',
+    fontFamily: fonts.regular,
     color: colors.textSecondary,
     lineHeight: 18,
     marginBottom: 8,
   },
   allergyInput: {
-    backgroundColor: colors.surface,
+    fontFamily: fonts.regular,
     borderRadius: radii.md,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -142,10 +134,10 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     minHeight: 88,
-    ...cardShadow,
   },
   allergyCharCount: {
     fontSize: 12,
+    fontFamily: fonts.regular,
     color: colors.textTertiary,
     marginTop: 4,
   },
@@ -172,13 +164,13 @@ export const styles = StyleSheet.create({
   },
   featureCardTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.text,
     marginBottom: 2,
   },
   featureCardDesc: {
     fontSize: 14,
-    fontWeight: '400',
+    fontFamily: fonts.regular,
     color: colors.textSecondary,
     lineHeight: 20,
   },
@@ -193,7 +185,7 @@ export const styles = StyleSheet.create({
   },
   ctaButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.onPrimary,
     letterSpacing: -0.2,
   },
@@ -203,11 +195,10 @@ export const styles = StyleSheet.create({
     paddingTop: spacing.safeTop,
     paddingHorizontal: 20,
     paddingBottom: spacing.sm,
-    backgroundColor: colors.background,
   },
   stepLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.primary,
     textTransform: 'uppercase',
     letterSpacing: 1,
@@ -215,7 +206,7 @@ export const styles = StyleSheet.create({
   },
   stepTitle: {
     fontSize: 24,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     color: colors.text,
     letterSpacing: -0.3,
   },
@@ -266,7 +257,7 @@ export const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255,255,255,0.95)',
   },
   captureInnerDisabled: {
     backgroundColor: colors.border,
@@ -278,7 +269,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
   },
   permissionFailedText: {
-    fontWeight: '400',
+    fontFamily: fonts.regular,
     color: colors.textSecondary,
     fontSize: 15,
   },
@@ -292,7 +283,6 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: spacing.md,
     paddingBottom: spacing.xl + 16,
-    backgroundColor: colors.background,
   },
   pillButton: {
     paddingHorizontal: 24,
@@ -308,7 +298,7 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.danger,
   },
   pillSecondary: {
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -317,12 +307,12 @@ export const styles = StyleSheet.create({
   },
   pillText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.text,
   },
   pillTextOnColor: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.onPrimary,
   },
 
@@ -337,49 +327,40 @@ export const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    ...cardShadow,
   },
   micCircleActive: {
     backgroundColor: colors.dangerMuted,
     borderColor: 'rgba(220, 38, 38, 0.25)',
   },
-  micIcon: {
-    fontSize: 40,
-  },
   recordingLabel: {
     fontSize: 20,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.text,
     marginBottom: spacing.sm,
     textAlign: 'center',
   },
   recordingHint: {
     fontSize: 14,
-    fontWeight: '400',
+    fontFamily: fonts.regular,
     color: colors.textSecondary,
     marginBottom: spacing.lg,
     textAlign: 'center',
     lineHeight: 20,
   },
   sentenceCard: {
-    backgroundColor: colors.surface,
-    padding: 20,
-    borderRadius: radii.lg,
+    padding: 0,
     width: '100%',
     maxWidth: 340,
-    borderWidth: 1,
-    borderColor: colors.border,
     ...cardShadow,
   },
   sentenceQuote: {
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.primary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
@@ -387,7 +368,7 @@ export const styles = StyleSheet.create({
   },
   sentenceText: {
     fontSize: 17,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: colors.text,
     fontStyle: 'italic',
     lineHeight: 26,
@@ -402,13 +383,13 @@ export const styles = StyleSheet.create({
   },
   analyzingText: {
     fontSize: 15,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     marginTop: spacing.lg,
     color: colors.textSecondary,
   },
   errorText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: colors.danger,
     textAlign: 'center',
     marginBottom: spacing.md,
@@ -432,17 +413,17 @@ export const styles = StyleSheet.create({
   },
   resultPercentage: {
     fontSize: 44,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     letterSpacing: -1.5,
   },
   resultPercentSign: {
     fontSize: 20,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: colors.textTertiary,
   },
   resultSeveritySubtext: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     textAlign: 'center',
     marginBottom: spacing.sm,
     paddingHorizontal: 24,
@@ -455,17 +436,15 @@ export const styles = StyleSheet.create({
   },
   resultSeverityText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     textTransform: 'capitalize',
   },
   resultCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    padding: 18,
     marginBottom: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
     ...cardShadow,
+  },
+  resultCardInner: {
+    padding: 18,
   },
   resultCardHeader: {
     flexDirection: 'row',
@@ -473,22 +452,19 @@ export const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 8,
   },
-  resultCardIcon: {
-    fontSize: 18,
-  },
   resultCardTitle: {
     fontSize: 15,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.text,
   },
   resultCardBody: {
     fontSize: 14,
-    fontWeight: '400',
+    fontFamily: fonts.regular,
     color: colors.textSecondary,
     lineHeight: 21,
   },
   symptomChip: {
-    backgroundColor: colors.surfaceSubtle,
+    backgroundColor: 'rgba(255,255,255,0.08)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: radii.pill,
@@ -499,7 +475,7 @@ export const styles = StyleSheet.create({
   },
   symptomChipText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontFamily: fonts.medium,
     color: colors.text,
   },
   doctorBanner: {
@@ -513,13 +489,10 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(220, 38, 38, 0.2)',
   },
-  doctorBannerIcon: {
-    fontSize: 24,
-  },
   doctorBannerText: {
     flex: 1,
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: fonts.semibold,
     color: colors.danger,
     lineHeight: 20,
   },

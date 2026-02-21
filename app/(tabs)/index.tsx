@@ -11,6 +11,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { CameraView } from 'expo-camera';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
@@ -19,8 +20,10 @@ import * as Location from 'expo-location';
 import { useHealthCheckPermissions } from '../../hooks/useHealthCheckPermissions';
 import { analyzeHealth, checkBackend } from '../../lib/api';
 import type { AnalysisResult, Step } from '../../lib/types';
-import { colors, getSeverityColor, contentMaxWidth } from './theme';
+import { colors, getSeverityColor, contentMaxWidth, radii } from './theme';
 import { styles } from './index.styles';
+import { GradientBackground } from './GradientBackground';
+import { GlassCard } from './GlassCard';
 
 const READ_ALOUD_SENTENCES = [
   'The quick brown fox jumps over the lazy dog.',
@@ -149,9 +152,13 @@ export default function HomeScreen() {
         try {
           let readUri = uri;
           if (uri.startsWith('content://') && FileSystem.cacheDirectory) {
-            const dest = `${FileSystem.cacheDirectory}voice_upload.m4a`;
-            await FileSystem.copyAsync({ from: uri, to: dest });
-            readUri = dest;
+            const dest = `${FileSystem.cacheDirectory}voice_upload_${Date.now()}.m4a`;
+            try {
+              await FileSystem.copyAsync({ from: uri, to: dest });
+              readUri = dest;
+            } catch (copyErr) {
+              console.warn('[runAnalysis] Copy content:// to cache failed, trying direct read:', copyErr);
+            }
           }
           voiceBase64 = await FileSystem.readAsStringAsync(readUri, { encoding: 'base64' });
         } catch (e) {
@@ -215,6 +222,7 @@ export default function HomeScreen() {
   if (step === 'camera') {
     return (
       <View style={styles.container}>
+        <GradientBackground />
         <View style={styles.contentWrap}>
           <View style={styles.stepHeader}>
             <Text style={styles.stepLabel}>Step 1 of 2</Text>
@@ -260,6 +268,7 @@ export default function HomeScreen() {
   if (step === 'recording') {
     return (
       <View style={styles.container}>
+        <GradientBackground />
         <View style={styles.contentWrap}>
           <View style={styles.stepHeader}>
             <Text style={styles.stepLabel}>Step 2 of 2</Text>
@@ -269,7 +278,11 @@ export default function HomeScreen() {
 
           <View style={styles.recordingContainer}>
           <View style={[styles.micCircle, isRecording && styles.micCircleActive]}>
-            <Text style={styles.micIcon}>{isRecording ? '🔴' : '🎙️'}</Text>
+            <Ionicons
+              name={isRecording ? 'radio-button-on' : 'mic'}
+              size={40}
+              color={isRecording ? colors.danger : colors.text}
+            />
           </View>
           <Text style={styles.recordingLabel}>
             {isRecording ? 'Listening...' : 'Read aloud'}
@@ -278,10 +291,10 @@ export default function HomeScreen() {
             We analyze your voice for signs of congestion or hoarseness.
           </Text>
           {readAloudSentence ? (
-            <View style={styles.sentenceCard}>
+            <GlassCard style={styles.sentenceCard} innerStyle={{ padding: 20 }}>
               <Text style={styles.sentenceQuote}>Read this</Text>
               <Text style={styles.sentenceText}>"{readAloudSentence}"</Text>
-            </View>
+            </GlassCard>
           ) : null}
         </View>
 
@@ -308,6 +321,7 @@ export default function HomeScreen() {
   if (step === 'analyzing') {
     return (
       <View style={styles.container}>
+        <GradientBackground />
         <View style={styles.contentWrap}>
           <View style={styles.stepHeader}>
             <Text style={styles.stepLabel}>Processing</Text>
@@ -353,6 +367,7 @@ export default function HomeScreen() {
 
     return (
       <View style={styles.container}>
+        <GradientBackground />
         <View style={styles.contentWrap}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.heroSection}>
@@ -384,23 +399,23 @@ export default function HomeScreen() {
             const showAllergy = sick >= 15 && allergy > 0 && allergy <= sick;
             if (!showAllergy) return null;
             return (
-              <View style={styles.resultCard}>
+              <GlassCard style={styles.resultCard} innerStyle={styles.resultCardInner}>
                 <View style={styles.resultCardHeader}>
-                  <Text style={styles.resultCardIcon}>🤧</Text>
+                  <Ionicons name="medical-outline" size={18} color={colors.text} />
                   <Text style={styles.resultCardTitle}>Allergy</Text>
                 </View>
                 <Text style={styles.resultCardBody}>
                   {allergy}% chance that the symptoms are allergy-related (e.g. pollen).
                 </Text>
-              </View>
+              </GlassCard>
             );
           })()}
 
           {/* Symptoms */}
           {analysisResult.symptoms && analysisResult.symptoms.length > 0 && (
-            <View style={styles.resultCard}>
+            <GlassCard style={styles.resultCard} innerStyle={styles.resultCardInner}>
               <View style={styles.resultCardHeader}>
-                <Text style={styles.resultCardIcon}>🔍</Text>
+                <Ionicons name="search-outline" size={18} color={colors.text} />
                 <Text style={styles.resultCardTitle}>Detected Symptoms</Text>
               </View>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
@@ -410,48 +425,52 @@ export default function HomeScreen() {
                   </View>
                 ))}
               </View>
-            </View>
+            </GlassCard>
           )}
 
           {/* Eye analysis */}
           {analysisResult.eyeAnalysis && (
-            <View style={styles.resultCard}>
+            <GlassCard style={styles.resultCard} innerStyle={styles.resultCardInner}>
               <View style={styles.resultCardHeader}>
-                <Text style={styles.resultCardIcon}>👁️</Text>
+                <Ionicons name="eye-outline" size={18} color={colors.text} />
                 <Text style={styles.resultCardTitle}>Eye Analysis</Text>
               </View>
               <Text style={styles.resultCardBody}>{analysisResult.eyeAnalysis}</Text>
-            </View>
+            </GlassCard>
           )}
 
-          {/* In your area (pollen / environmental – location is used for this data only) */}
+          {/* Location + pollen (title = actual place when available) */}
           {analysisResult.environmentalFactors && (
-            <View style={styles.resultCard}>
+            <GlassCard style={styles.resultCard} innerStyle={styles.resultCardInner}>
               <View style={styles.resultCardHeader}>
-                <Text style={styles.resultCardIcon}>🌿</Text>
-                <Text style={styles.resultCardTitle}>In your area</Text>
+                <Ionicons name="leaf-outline" size={18} color={colors.text} />
+                <Text style={styles.resultCardTitle}>
+                  {analysisResult.location?.displayName ?? 'In your area'}
+                </Text>
               </View>
               <Text style={styles.resultCardBody}>
-                In your area, {analysisResult.environmentalFactors.replace(/^./, (c) => c.toLowerCase())}
+                {analysisResult.location?.displayName
+                  ? analysisResult.environmentalFactors.replace(/^./, (c) => c.toLowerCase())
+                  : `In your area, ${analysisResult.environmentalFactors.replace(/^./, (c) => c.toLowerCase())}`}
               </Text>
-            </View>
+            </GlassCard>
           )}
 
           {/* Recommendations */}
           {analysisResult.recommendations && (
-            <View style={styles.resultCard}>
+            <GlassCard style={styles.resultCard} innerStyle={styles.resultCardInner}>
               <View style={styles.resultCardHeader}>
-                <Text style={styles.resultCardIcon}>💡</Text>
+                <Ionicons name="bulb-outline" size={18} color={colors.text} />
                 <Text style={styles.resultCardTitle}>Recommendations</Text>
               </View>
               <Text style={styles.resultCardBody}>{analysisResult.recommendations}</Text>
-            </View>
+            </GlassCard>
           )}
 
           {/* Doctor warning */}
           {analysisResult.shouldSeeDoctor && (
             <View style={styles.doctorBanner}>
-              <Text style={styles.doctorBannerIcon}>⚠️</Text>
+              <Ionicons name="warning" size={24} color={colors.danger} />
               <Text style={styles.doctorBannerText}>
                 {analysisResult.isUnilateral
                   ? 'Unilateral redness detected — please seek urgent medical attention.'
@@ -462,16 +481,16 @@ export default function HomeScreen() {
 
           {/* Voice analysis if available */}
           {analysisResult.voice && !analysisResult.voice.error && (
-            <View style={styles.resultCard}>
+            <GlassCard style={styles.resultCard} innerStyle={styles.resultCardInner}>
               <View style={styles.resultCardHeader}>
-                <Text style={styles.resultCardIcon}>🎙️</Text>
+                <Ionicons name="mic-outline" size={18} color={colors.text} />
                 <Text style={styles.resultCardTitle}>Voice Analysis</Text>
               </View>
               <Text style={styles.resultCardBody}>
                 Nasality: {analysisResult.voice.nasality_score}/100 — {analysisResult.voice.interpretation}
                 {analysisResult.voice.suggests_congestion ? '\nSuggests nasal congestion.' : ''}
               </Text>
-            </View>
+            </GlassCard>
           )}
 
           <TouchableOpacity style={styles.ctaButton} onPress={reset}>
@@ -486,19 +505,19 @@ export default function HomeScreen() {
   /* ═══════════════  MENU  ═══════════════ */
   const TILES = [
     {
-      icon: '👁️',
+      icon: 'eye-outline' as const,
       title: 'Eye Scan',
       desc: 'We check your eyes for redness, puffiness, and discoloration using your camera.',
       iconBg: `${colors.primary}14`,
     },
     {
-      icon: '🎙️',
+      icon: 'mic-outline' as const,
       title: 'Voice Analysis',
       desc: 'A short voice sample helps us detect congestion, hoarseness, or strain.',
       iconBg: `${colors.warning}18`,
     },
     {
-      icon: '🌿',
+      icon: 'leaf-outline' as const,
       title: 'Pollen & area',
       desc: 'Local allergen levels from your area are included in your assessment.',
       iconBg: `${colors.success}18`,
@@ -507,6 +526,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
+      <GradientBackground />
       <View style={styles.contentWrap}>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.heroSection}>
@@ -530,13 +550,13 @@ export default function HomeScreen() {
           >
             {TILES.map((tile) => (
               <View key={tile.title} style={[styles.tileCard, { width: contentWidth }]}>
-                <View style={styles.tileCardInner}>
+                <GlassCard style={styles.tileCardInner}>
                   <View style={[styles.tileIcon, { backgroundColor: tile.iconBg }]}>
-                    <Text style={styles.tileIconEmoji}>{tile.icon}</Text>
+                    <Ionicons name={tile.icon} size={28} color={colors.text} />
                   </View>
                   <Text style={styles.tileTitle}>{tile.title}</Text>
                   <Text style={styles.tileDesc}>{tile.desc}</Text>
-                </View>
+                </GlassCard>
               </View>
             ))}
           </ScrollView>
@@ -556,17 +576,19 @@ export default function HomeScreen() {
           <Text style={styles.allergyHint}>
             E.g. hay fever, itchy eyes in spring, asthma, known allergens. This is sent to the AI to improve your assessment.
           </Text>
-          <TextInput
-            style={styles.allergyInput}
-            placeholder="e.g. Pollen allergy, itchy eyes in summer, allergic to grass..."
-            placeholderTextColor={colors.textTertiary}
-            value={allergyHistoryText}
-            onChangeText={setAllergyHistoryText}
-            multiline
-            numberOfLines={3}
-            maxLength={500}
-            textAlignVertical="top"
-          />
+          <GlassCard innerStyle={{ padding: 14, borderRadius: radii.md }}>
+            <TextInput
+              style={[styles.allergyInput, { borderWidth: 0 }]}
+              placeholder="e.g. Pollen allergy, itchy eyes in summer, allergic to grass..."
+              placeholderTextColor={colors.textTertiary}
+              value={allergyHistoryText}
+              onChangeText={setAllergyHistoryText}
+              multiline
+              numberOfLines={3}
+              maxLength={500}
+              textAlignVertical="top"
+            />
+          </GlassCard>
           {allergyHistoryText.length > 0 && (
             <Text style={styles.allergyCharCount}>{allergyHistoryText.length}/500</Text>
           )}

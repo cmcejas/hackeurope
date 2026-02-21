@@ -1,71 +1,175 @@
-# Health Check (Expo + Gemini + Pollen)
+# HackEurope — Health Check App
 
-An Expo Go app that uses a **picture of your eyes**, **voice recording**, and **Google Pollen API** data, analyzed by **Gemini** on a small backend, to give a simple “are you sick?” assessment.
+Mobile app (Expo) that uses a **photo of your eyes**, optional **voice recording**, and **location** to get a simple health assessment. A Node backend sends the image and context to **Gemini** and optional **Google Pollen API**, and an optional Python **voice service** analyzes the recording for nasality.
 
-## Get started
+---
 
-### 1. Install dependencies
+## Prerequisites
+
+- **Node.js** 18+
+- **npm**
+- **Python 3.8+** (for the voice analysis service)
+- **Expo Go** on your device, or Android/iOS simulator
+
+---
+
+## Setup
+
+### 1. Clone and install
 
 ```bash
+git clone <repo-url>
+cd hackeurope
+
+# App
 npm install
+
+# Backend
+cd backend && npm install && cd ..
 ```
 
-### 2. Backend (API keys stay here, not in the app)
+### 2. Environment variables
+
+**App (project root)**  
+Copy and edit if you need a custom API URL (e.g. for a physical device on the same WiFi):
+
+```bash
+cp .env.example .env
+# Optional: set EXPO_PUBLIC_API_URL=http://YOUR_IP:3001
+```
+
+**Backend**  
+Required for the analysis endpoint:
 
 ```bash
 cd backend
 cp .env.example .env
-# Edit .env: set GEMINI_API_KEY (and optionally GOOGLE_POLLEN_API_KEY)
-npm install
-npm run dev
+# Edit .env: set GEMINI_API_KEY (get one at https://ai.google.dev/)
+# Optional: GOOGLE_POLLEN_API_KEY for pollen/environmental data
+cd ..
 ```
 
-Backend runs at `http://localhost:3001`. For a physical device, use your machine’s IP and set `EXPO_PUBLIC_API_URL` in the app’s `.env` **NetworkError?** On a real device, set `EXPO_PUBLIC_API_URL` in the project root `.env` to your computer IP (e.g. `http://192.168.1.5:3001`). Find IP: `ip addr` or `ipconfig`. Restart Expo after changing `.env`.
+See `backend/.env.example` for all optional keys.
 
-### 3. App config
+---
 
-In the project root, copy env and set the backend URL if needed:
+## How to run the project
+
+### Option A — One-command start (recommended)
+
+Starts the voice service and backend; you then start the app in another terminal.
 
 ```bash
-cp .env.example .env
-# Optional: set EXPO_PUBLIC_API_URL to http://YOUR_IP:3001 for Expo Go on device
+./start-dev.sh
 ```
 
-### 4. Start the app
+In a **second terminal**:
 
 ```bash
-npx expo start
+npm start
+# Then press 'a' (Android), 'i' (iOS), or 'w' (web)
 ```
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+**Stop services:**
 
 ```bash
-npm run reset-project
+./stop-dev.sh
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Option B — Manual (three terminals)
 
-## Learn more
+1. **Voice service** (optional; for voice analysis):
 
-To learn more about developing your project with Expo, look at the following resources:
+   ```bash
+   cd backend/voice-service
+   python3 -m venv venv
+   source venv/bin/activate   # Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   python main.py
+   ```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+   Runs at `http://localhost:3002`.
 
-## Join the community
+2. **Backend:**
 
-Join our community of developers creating universal apps.
+   ```bash
+   cd backend
+   npm run dev
+   ```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+   Runs at `http://localhost:3001`.
+
+3. **App:**
+
+   ```bash
+   npm start
+   ```
+
+   Use the Expo CLI to open on device or simulator.
+
+**Using a physical device:** Set `EXPO_PUBLIC_API_URL` in the root `.env` to your computer’s IP (e.g. `http://192.168.1.5:3001`). Find your IP with `ip addr` (Linux) or `ipconfig` (Windows). Restart Expo after changing `.env`.
+
+---
+
+## How to run the tests
+
+### 1. Model evaluation (Gemini behavior)
+
+Feeds the backend different symptom prompts and checks that the model’s answers match expected criteria (probability ranges, `shouldSeeDoctor`, etc.). Measures how often the model is “correct” on the defined cases.
+
+**Prerequisites:** Backend must be running (`cd backend && npm run dev`).
+
+```bash
+cd backend
+npm run evaluate-model
+```
+
+- Test cases: `backend/scripts/model-test-cases.js`
+- Runner: `backend/scripts/evaluate-model.js`
+- Optional: set `TEST_IMAGE_BASE64` to a base64 eye image for more realistic runs.
+
+See `backend/scripts/README.md` for adding or changing cases.
+
+### 2. Voice service test
+
+Generates synthetic audio and calls the voice service’s `/health` and `/analyze` endpoints.
+
+**Prerequisites:** Voice service running (`cd backend/voice-service && python main.py`).
+
+```bash
+cd backend/voice-service
+source venv/bin/activate
+pip install -r test_requirements.txt   # if not already installed
+python test_voice_service.py
+```
+
+### 3. Backend health check
+
+With the backend running:
+
+```bash
+curl http://localhost:3001/health
+# Expect: {"ok":true}
+```
+
+---
+
+## Project layout
+
+| Path | Description |
+|------|-------------|
+| `app/` | Expo Router app (tabs, camera, recording, results) |
+| `lib/` | API client, config, types |
+| `backend/` | Node API (Express): `/health`, `/analyze`, pollen, geocoding |
+| `backend/voice-service/` | Python voice analysis (librosa), optional |
+| `backend/scripts/` | Model evaluation: test cases + runner |
+| `start-dev.sh` / `stop-dev.sh` | Start/stop backend + voice service |
+
+---
+
+## API overview
+
+- **GET** `http://localhost:3001/health` — Liveness.
+- **POST** `http://localhost:3001/analyze` — Body: `imageBase64`, `imageMediaType`, `latitude`, `longitude`; optional: `voiceBase64`, `voiceMediaType`, `allergyHistory`. Returns assessment (e.g. `sicknessProbability`, `shouldSeeDoctor`, `recommendations`).
+
+More detail: `backend/QUICKSTART.md`, `backend/voice-service/README.md`.

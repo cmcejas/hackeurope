@@ -12,7 +12,14 @@ const GOOGLE_MAPS_KEY = process.env.GOOGLE_MAPS_API_KEY || GOOGLE_POLLEN_KEY;
 const VOICE_SERVICE_URL = process.env.VOICE_SERVICE_URL || 'http://localhost:3002';
 
 app.use(cors());
-app.use(express.json({ limit: '30mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && 'body' in err) {
+    console.error('[/] JSON body parse failed:', err.message);
+    return res.status(400).json({ error: 'Invalid JSON body' });
+  }
+  next(err);
+});
 
 /* ═══════════════  REVERSE GEOCODING (Google Maps)  ═══════════════ */
 
@@ -309,7 +316,7 @@ Respond with a single JSON object only, no markdown or extra text:
     { text },
   ];
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
   const body = JSON.stringify({
     contents: [{ parts }],
     generationConfig: { max_output_tokens: 2048, response_mime_type: 'application/json' },
@@ -399,15 +406,18 @@ Respond with a single JSON object only, no markdown or extra text:
 /** POST /analyze — JSON body: imageBase64, imageMediaType, latitude, longitude, optional voiceBase64 + voiceMediaType */
 app.post('/analyze', async (req, res) => {
   try {
-    const imageBase64 = req.body?.imageBase64;
-    const imageMediaType = (req.body?.imageMediaType || 'image/jpeg').trim();
-    const lat = parseFloat(req.body?.latitude);
-    const lon = parseFloat(req.body?.longitude);
-    const voiceBase64 = req.body?.voiceBase64 || null;
-    const voiceMimeType = (req.body?.voiceMediaType || 'audio/m4a').trim();
+    const body = req.body || {};
+    const imageBase64 = body.imageBase64;
+    const imageMediaType = (body.imageMediaType || 'image/jpeg').trim();
+    const lat = parseFloat(body.latitude);
+    const lon = parseFloat(body.longitude);
+    const voiceBase64 = body.hasOwnProperty('voiceBase64') && body.voiceBase64 != null && body.voiceBase64 !== ''
+      ? String(body.voiceBase64)
+      : null;
+    const voiceMimeType = (body.voiceMediaType || 'audio/m4a').trim();
 
     console.log('[/analyze] Request received', {
-      bodyKeys: Object.keys(req.body || {}),
+      bodyKeys: Object.keys(body),
       hasVoice: Boolean(voiceBase64),
       voiceLen: voiceBase64?.length ?? 0,
     });
