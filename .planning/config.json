@@ -1,0 +1,11 @@
+{
+  "workflow": "new-project",
+  "preferences": {
+    "language": "TypeScript/Python",
+    "frameworks": ["Expo", "FastAPI"],
+    "styling": "TailwindCSS/NativeWind",
+    "testing": "Pytest/Vitest",
+    "infrastructure": "Docker"
+  },
+  "status": "researching"
+}
