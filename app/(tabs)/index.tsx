@@ -28,8 +28,19 @@ const READ_ALOUD_SENTENCES = [
   'The five boxing wizards jump quickly.',
 ];
 
-function getRandomReadAloudSentence(): string {
+function pickSentence(): string {
   return READ_ALOUD_SENTENCES[Math.floor(Math.random() * READ_ALOUD_SENTENCES.length)];
+}
+
+/* ── Step indicator dots ── */
+function StepDots({ current }: { current: number }) {
+  return (
+    <View style={styles.stepIndicator}>
+      {[0, 1, 2].map((i) => (
+        <View key={i} style={[styles.stepDot, i === current && styles.stepDotActive]} />
+      ))}
+    </View>
+  );
 }
 
 export default function HomeScreen() {
@@ -40,11 +51,13 @@ export default function HomeScreen() {
   const [step, setStep] = useState<Step>('menu');
   const [cameraReady, setCameraReady] = useState(false);
   const [eyePhotoBase64, setEyePhotoBase64] = useState<string | null>(null);
-  const [readAloudSentence, setReadAloudSentence] = useState<string>('');
+  const [readAloudSentence, setReadAloudSentence] = useState('');
   const [voiceUri, setVoiceUri] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+
+  /* ── Actions ── */
 
   const captureEyePhoto = async () => {
     const camera = cameraRef.current;
@@ -53,13 +66,10 @@ export default function HomeScreen() {
       return;
     }
     try {
-      const photo = await camera.takePictureAsync({
-        base64: true,
-        imageType: 'jpg',
-      });
+      const photo = await camera.takePictureAsync({ base64: true, imageType: 'jpg' });
       if (photo?.base64) {
         setEyePhotoBase64(photo.base64);
-        setReadAloudSentence(getRandomReadAloudSentence());
+        setReadAloudSentence(pickSentence());
         setStep('recording');
       } else {
         Alert.alert('Error', 'Failed to capture photo');
@@ -98,7 +108,6 @@ export default function HomeScreen() {
     setStep('analyzing');
     try {
       await recording.stopAndUnloadAsync();
-      // Give the filesystem a moment to flush the recording before reading the URI
       await new Promise((r) => setTimeout(r, 400));
       const uri = recording.getURI();
       setVoiceUri(uri ?? null);
@@ -130,21 +139,18 @@ export default function HomeScreen() {
       if (uri) {
         try {
           let readUri = uri;
-          // On Android, expo-av may return content://; expo-file-system reads file:// or needs a copy
           if (uri.startsWith('content://') && FileSystem.cacheDirectory) {
             const dest = `${FileSystem.cacheDirectory}voice_upload.m4a`;
             await FileSystem.copyAsync({ from: uri, to: dest });
             readUri = dest;
           }
-          voiceBase64 = await FileSystem.readAsStringAsync(readUri, {
-            encoding: 'base64',
-          });
-          if (__DEV__) console.log('[runAnalysis] voice loaded, length:', voiceBase64?.length ?? 0);
+          voiceBase64 = await FileSystem.readAsStringAsync(readUri, { encoding: 'base64' });
         } catch (e) {
-          if (__DEV__) console.warn('[runAnalysis] Could not read voice file:', uri?.slice(0, 60), e);
+          console.warn('[runAnalysis] Could not read voice file:', uri, e);
+          Alert.alert('Voice skipped', `Could not read the recording file. Analysis will proceed without voice.\n\n${e}`);
         }
-      } else if (__DEV__) {
-        console.log('[runAnalysis] No voice URI (getURI() may have returned undefined)');
+      } else {
+        console.warn('[runAnalysis] No voice URI — recording may not have saved');
       }
 
       const result = await analyzeHealth({
@@ -161,10 +167,7 @@ export default function HomeScreen() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Analysis failed';
       setAnalysisError(message);
-      Alert.alert(
-        'Analysis failed',
-        `${message} On this computer, start the backend in another terminal: cd backend && npm run dev`
-      );
+      Alert.alert('Analysis failed', `${message}\n\nMake sure the backend is running.`);
     }
   };
 
@@ -191,75 +194,88 @@ export default function HomeScreen() {
     setAnalysisError(null);
   };
 
-  // —— Steps ——
-
+  /* ═══════════════  CAMERA  ═══════════════ */
   if (step === 'camera') {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerText}>Step 1: Take Eye Photo</Text>
+        <View style={styles.stepHeader}>
+          <Text style={styles.stepLabel}>Step 1 of 2</Text>
+          <Text style={styles.stepTitle}>Eye Photo</Text>
         </View>
+        <StepDots current={0} />
+
         {cameraPermission?.granted ? (
-          <CameraView
-            ref={cameraRef}
-            style={styles.camera}
-            facing="front"
-            onCameraReady={() => setCameraReady(true)}
-          />
+          <View style={{ flex: 1, paddingHorizontal: 20 }}>
+            <CameraView
+              ref={cameraRef}
+              style={styles.camera}
+              facing="front"
+              onCameraReady={() => setCameraReady(true)}
+            />
+          </View>
         ) : (
           <View style={styles.permissionFailed}>
-            <Text>Camera permission not granted</Text>
+            <Text style={styles.permissionFailedText}>Camera permission not granted</Text>
           </View>
         )}
-        <View style={styles.buttonRow}>
-          <TouchableOpacity style={[styles.button, styles.buttonCancel]} onPress={reset}>
-            <Text style={styles.buttonText}>Cancel</Text>
+
+        <View style={styles.bottomBar}>
+          <TouchableOpacity style={[styles.pillButton, styles.pillSecondary]} onPress={reset}>
+            <Text style={styles.pillText}>Cancel</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.button, styles.buttonCapture, !cameraReady && styles.buttonDisabled]}
             onPress={captureEyePhoto}
             disabled={!cameraReady}
+            activeOpacity={0.7}
           >
-            <Text style={styles.buttonText}>{cameraReady ? 'Capture' : 'Loading…'}</Text>
+            <View style={[styles.captureRing, !cameraReady && styles.pillDisabled]}>
+              <View style={[styles.captureInner, !cameraReady && styles.captureInnerDisabled]} />
+            </View>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
 
+  /* ═══════════════  RECORDING  ═══════════════ */
   if (step === 'recording') {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerText}>Step 2: Record Voice</Text>
+        <View style={styles.stepHeader}>
+          <Text style={styles.stepLabel}>Step 2 of 2</Text>
+          <Text style={styles.stepTitle}>Voice Sample</Text>
         </View>
+        <StepDots current={1} />
+
         <View style={styles.recordingContainer}>
-          <Text style={styles.recordingText}>
-            {isRecording ? '🔴 Recording...' : 'Read this sentence aloud'}
+          <View style={[styles.micCircle, isRecording && styles.micCircleActive]}>
+            <Text style={styles.micIcon}>{isRecording ? '🔴' : '🎙️'}</Text>
+          </View>
+          <Text style={styles.recordingLabel}>
+            {isRecording ? 'Listening...' : 'Read aloud'}
           </Text>
-          <Text style={styles.instructionText}>
-            We'll analyze how you sound (e.g. congestion, hoarseness).
+          <Text style={styles.recordingHint}>
+            We analyze your voice for signs of congestion or hoarseness.
           </Text>
           {readAloudSentence ? (
-            <View style={styles.sentenceBox}>
+            <View style={styles.sentenceCard}>
+              <Text style={styles.sentenceQuote}>Read this</Text>
               <Text style={styles.sentenceText}>"{readAloudSentence}"</Text>
             </View>
           ) : null}
         </View>
-        <View style={styles.buttonRow}>
-          <TouchableOpacity
-            style={[styles.button, styles.buttonCancel]}
-            onPress={reset}
-          >
-            <Text style={styles.buttonText}>Cancel</Text>
+
+        <View style={styles.bottomBar}>
+          <TouchableOpacity style={[styles.pillButton, styles.pillSecondary]} onPress={reset}>
+            <Text style={styles.pillText}>Cancel</Text>
           </TouchableOpacity>
           {!isRecording ? (
-            <TouchableOpacity style={[styles.button, styles.buttonRecord]} onPress={startRecording}>
-              <Text style={styles.buttonText}>Start Recording</Text>
+            <TouchableOpacity style={[styles.pillButton, styles.pillPrimary]} onPress={startRecording}>
+              <Text style={styles.pillTextOnColor}>Start Recording</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={[styles.button, styles.buttonStop]} onPress={stopRecording}>
-              <Text style={styles.buttonText}>Stop Recording</Text>
+            <TouchableOpacity style={[styles.pillButton, styles.pillDanger]} onPress={stopRecording}>
+              <Text style={styles.pillTextOnColor}>Stop & Analyze</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -267,42 +283,39 @@ export default function HomeScreen() {
     );
   }
 
+  /* ═══════════════  ANALYZING  ═══════════════ */
   if (step === 'analyzing') {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerText}>Analyzing Your Health</Text>
+        <View style={styles.stepHeader}>
+          <Text style={styles.stepLabel}>Processing</Text>
+          <Text style={styles.stepTitle}>Analyzing</Text>
         </View>
+        <StepDots current={2} />
+
         <View style={styles.analyzingContainer}>
           {analysisError ? (
             <>
               <Text style={styles.errorText}>{analysisError}</Text>
-              <Text style={styles.analyzingText}>
-                On this computer: start the backend (cd backend && npm run dev).
-                On a phone: set EXPO_PUBLIC_API_URL to your computer IP in .env.
-              </Text>
-              <View style={styles.buttonRow}>
-                <TouchableOpacity
-                  style={[styles.button, styles.buttonCancel]}
-                  onPress={reset}
-                >
-                  <Text style={styles.buttonText}>Back to start</Text>
+              <View style={[styles.bottomBar, { position: 'absolute', bottom: 0, left: 0, right: 0 }]}>
+                <TouchableOpacity style={[styles.pillButton, styles.pillSecondary]} onPress={reset}>
+                  <Text style={styles.pillText}>Back</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.button, styles.buttonStart]}
+                  style={[styles.pillButton, styles.pillPrimary]}
                   onPress={() => {
                     setAnalysisError(null);
                     runAnalysis(voiceUri ?? undefined);
                   }}
                 >
-                  <Text style={styles.buttonText}>Retry</Text>
+                  <Text style={styles.pillTextOnColor}>Retry</Text>
                 </TouchableOpacity>
               </View>
             </>
           ) : (
             <>
               <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.analyzingText}>Processing with Gemini...</Text>
+              <Text style={styles.analyzingText}>Analyzing with AI...</Text>
             </>
           )}
         </View>
@@ -310,100 +323,146 @@ export default function HomeScreen() {
     );
   }
 
+  /* ═══════════════  RESULTS  ═══════════════ */
   if (step === 'results' && analysisResult) {
     const prob = analysisResult.sicknessProbability ?? 0;
-    const severityColor = getSeverityColor(prob);
+    const sevColor = getSeverityColor(prob);
 
     return (
       <View style={styles.container}>
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Health Assessment</Text>
+          <View style={styles.heroSection}>
+            <Text style={styles.heroTitle}>Results</Text>
           </View>
 
-          <View style={[styles.resultBox, { borderLeftColor: severityColor }]}>
-            <Text style={styles.resultLabel}>Sickness Probability</Text>
-            <Text style={[styles.probabilityText, { color: severityColor }]}>
-              {prob}%
-            </Text>
-            <Text style={styles.severityText}>
-              Severity: {analysisResult.severity ?? '—'}
-            </Text>
+          {/* Probability ring */}
+          <View style={styles.resultRingContainer}>
+            <View style={[styles.resultRingOuter, { borderColor: sevColor }]}>
+              <Text style={[styles.resultPercentage, { color: sevColor }]}>
+                {prob}
+                <Text style={styles.resultPercentSign}>%</Text>
+              </Text>
+            </View>
+            <View style={[styles.resultSeverityPill, { backgroundColor: `${sevColor}20` }]}>
+              <Text style={[styles.resultSeverityText, { color: sevColor }]}>
+                {analysisResult.severity ?? 'unknown'}
+              </Text>
+            </View>
           </View>
 
+          {/* Symptoms */}
           {analysisResult.symptoms && analysisResult.symptoms.length > 0 && (
-            <View style={styles.infoBox}>
-              <Text style={styles.infoTitle}>🔍 Detected Symptoms</Text>
-              {analysisResult.symptoms.map((s, i) => (
-                <Text key={i} style={styles.symptomText}>• {s}</Text>
-              ))}
+            <View style={styles.resultCard}>
+              <View style={styles.resultCardHeader}>
+                <Text style={styles.resultCardIcon}>🔍</Text>
+                <Text style={styles.resultCardTitle}>Detected Symptoms</Text>
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                {analysisResult.symptoms.map((s, i) => (
+                  <View key={i} style={styles.symptomChip}>
+                    <Text style={styles.symptomChipText}>{s}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
           )}
 
+          {/* Eye analysis */}
           {analysisResult.eyeAnalysis && (
-            <View style={styles.infoBox}>
-              <Text style={styles.infoTitle}>👁️ Eye Analysis</Text>
-              <Text style={styles.infoText}>{analysisResult.eyeAnalysis}</Text>
+            <View style={styles.resultCard}>
+              <View style={styles.resultCardHeader}>
+                <Text style={styles.resultCardIcon}>👁️</Text>
+                <Text style={styles.resultCardTitle}>Eye Analysis</Text>
+              </View>
+              <Text style={styles.resultCardBody}>{analysisResult.eyeAnalysis}</Text>
             </View>
           )}
 
+          {/* Environmental */}
           {analysisResult.environmentalFactors && (
-            <View style={styles.infoBox}>
-              <Text style={styles.infoTitle}>🌍 Environmental Factors</Text>
-              <Text style={styles.infoText}>{analysisResult.environmentalFactors}</Text>
+            <View style={styles.resultCard}>
+              <View style={styles.resultCardHeader}>
+                <Text style={styles.resultCardIcon}>🌿</Text>
+                <Text style={styles.resultCardTitle}>Environmental Factors</Text>
+              </View>
+              <Text style={styles.resultCardBody}>{analysisResult.environmentalFactors}</Text>
             </View>
           )}
 
+          {/* Recommendations */}
           {analysisResult.recommendations && (
-            <View style={styles.infoBox}>
-              <Text style={styles.infoTitle}>💊 Recommendations</Text>
-              <Text style={styles.infoText}>{analysisResult.recommendations}</Text>
+            <View style={styles.resultCard}>
+              <View style={styles.resultCardHeader}>
+                <Text style={styles.resultCardIcon}>💡</Text>
+                <Text style={styles.resultCardTitle}>Recommendations</Text>
+              </View>
+              <Text style={styles.resultCardBody}>{analysisResult.recommendations}</Text>
             </View>
           )}
 
+          {/* Doctor warning */}
           {analysisResult.shouldSeeDoctor && (
-            <View style={[styles.infoBox, { borderLeftColor: colors.danger }]}>
-              <Text style={[styles.infoTitle, { color: colors.danger }]}>
-                ⚠️ Important
-              </Text>
-              <Text style={[styles.infoText, { color: colors.danger }]}>
-                Please consult a doctor
+            <View style={styles.doctorBanner}>
+              <Text style={styles.doctorBannerIcon}>⚠️</Text>
+              <Text style={styles.doctorBannerText}>
+                Based on these results, we recommend consulting a healthcare professional.
               </Text>
             </View>
           )}
 
-          <TouchableOpacity style={[styles.button, styles.buttonStart]} onPress={reset}>
-            <Text style={styles.buttonText}>Start New Check</Text>
+          <TouchableOpacity style={styles.ctaButton} onPress={reset}>
+            <Text style={styles.ctaButtonText}>Start New Check</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
     );
   }
 
-  // Menu
+  /* ═══════════════  MENU  ═══════════════ */
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Health Check</Text>
-          <Text style={styles.subtitle}>Are you feeling sick?</Text>
+        <View style={styles.heroSection}>
+          <Text style={styles.heroTitle}>Health Check</Text>
+          <Text style={styles.heroSubtitle}>
+            Quick AI-powered screening using your camera, voice, and local pollen data.
+          </Text>
         </View>
 
-        <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>📸 Eye Analysis</Text>
-          <Text style={styles.infoText}>We will analyze your eyes for signs of illness</Text>
-        </View>
-        <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>🎤 Voice Analysis</Text>
-          <Text style={styles.infoText}>Read a sentence aloud; we analyze how you sound (e.g. congestion, hoarseness)</Text>
-        </View>
-        <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>🌍 Pollen Data</Text>
-          <Text style={styles.infoText}>We will check local pollen levels</Text>
+        <View style={styles.featureGrid}>
+          <View style={styles.featureCard}>
+            <View style={[styles.featureIcon, { backgroundColor: 'rgba(10,132,255,0.15)' }]}>
+              <Text style={{ fontSize: 22 }}>👁️</Text>
+            </View>
+            <View style={styles.featureCardContent}>
+              <Text style={styles.featureCardTitle}>Eye Scan</Text>
+              <Text style={styles.featureCardDesc}>Checks redness, puffiness, and discoloration</Text>
+            </View>
+          </View>
+
+          <View style={styles.featureCard}>
+            <View style={[styles.featureIcon, { backgroundColor: 'rgba(255,159,10,0.15)' }]}>
+              <Text style={{ fontSize: 22 }}>🎙️</Text>
+            </View>
+            <View style={styles.featureCardContent}>
+              <Text style={styles.featureCardTitle}>Voice Analysis</Text>
+              <Text style={styles.featureCardDesc}>Detects congestion, hoarseness, and strain</Text>
+            </View>
+          </View>
+
+          <View style={styles.featureCard}>
+            <View style={[styles.featureIcon, { backgroundColor: 'rgba(48,209,88,0.15)' }]}>
+              <Text style={{ fontSize: 22 }}>🌿</Text>
+            </View>
+            <View style={styles.featureCardContent}>
+              <Text style={styles.featureCardTitle}>Pollen Report</Text>
+              <Text style={styles.featureCardDesc}>Local allergen levels from your area</Text>
+            </View>
+          </View>
         </View>
 
-        <TouchableOpacity style={[styles.button, styles.buttonStart]} onPress={startCheck}>
-          <Text style={styles.buttonText}>Start Health Check</Text>
+        <TouchableOpacity style={styles.ctaButton} onPress={startCheck} activeOpacity={0.8}>
+          <Text style={styles.ctaButtonText}>Begin Health Check</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>

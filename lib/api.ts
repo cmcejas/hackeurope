@@ -30,21 +30,23 @@ export interface AnalyzePayload {
  * Sends eye photo, optional voice (base64), and location to backend for health analysis.
  */
 export async function analyzeHealth(payload: AnalyzePayload): Promise<AnalysisResult> {
-  const formData = new FormData();
-  formData.append('latitude', String(payload.latitude));
-  formData.append('longitude', String(payload.longitude));
-  formData.append('imageBase64', payload.imageBase64);
-  formData.append('imageMediaType', payload.imageMediaType || 'image/jpeg');
+  const body: Record<string, unknown> = {
+    latitude: payload.latitude,
+    longitude: payload.longitude,
+    imageBase64: payload.imageBase64,
+    imageMediaType: payload.imageMediaType || 'image/jpeg',
+  };
 
   if (payload.voiceBase64) {
-    formData.append('voiceBase64', payload.voiceBase64);
-    formData.append('voiceMediaType', payload.voiceMediaType || 'audio/m4a');
+    body.voiceBase64 = payload.voiceBase64;
+    body.voiceMediaType = payload.voiceMediaType || 'audio/m4a';
   }
 
   const response = await fetch(`${API_URL}/analyze`, {
     method: 'POST',
-    body: formData,
+    body: JSON.stringify(body),
     headers: {
+      'Content-Type': 'application/json',
       Accept: 'application/json',
     },
   });

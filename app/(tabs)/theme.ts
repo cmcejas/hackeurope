@@ -1,36 +1,45 @@
 /**
- * Shared design tokens for the Health Check tab.
+ * Apple-inspired design tokens — dark mode, system blue accent.
  */
 export const colors = {
-  background: '#f5f5f5',
-  surface: '#fff',
-  text: '#333',
-  textMuted: '#666',
-  border: '#eee',
+  background: '#000000',
+  surface: '#1C1C1E',
+  surfaceElevated: '#2C2C2E',
+  surfaceSecondary: '#38383A',
+  text: '#FFFFFF',
+  textSecondary: '#8E8E93',
+  textTertiary: '#636366',
+  border: 'rgba(255,255,255,0.08)',
 
-  primary: '#007AFF',
-  success: '#34C759',
-  warning: '#FF9500',
-  danger: '#FF3B30',
-  neutral: '#999',
+  primary: '#0A84FF',
+  primaryDark: '#0066CC',
+  success: '#30D158',
+  warning: '#FF9F0A',
+  danger: '#FF453A',
+  teal: '#64D2FF',
+  indigo: '#5E5CE6',
+
+  onPrimary: '#FFFFFF',
 } as const;
 
 export const spacing = {
   xs: 4,
   sm: 8,
   md: 16,
-  lg: 20,
-  xl: 24,
-  xxl: 30,
-  topPadding: 40,
+  lg: 24,
+  xl: 32,
+  xxl: 48,
+  safeTop: 60,
 } as const;
 
-export const borderRadius = {
-  sm: 8,
-  md: 12,
+export const radii = {
+  sm: 12,
+  md: 16,
+  lg: 22,
+  xl: 28,
+  pill: 9999,
 } as const;
 
-/** Severity thresholds (probability %) for low / medium / high. */
 export function getSeverityColor(probability: number): string {
   if (probability < 30) return colors.success;
   if (probability < 60) return colors.warning;

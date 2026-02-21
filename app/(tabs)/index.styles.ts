@@ -1,177 +1,399 @@
-import { StyleSheet } from 'react-native';
-import { colors, spacing, borderRadius } from './theme';
+import { Platform, StyleSheet } from 'react-native';
+import { colors, spacing, radii } from './theme';
+
+const softShadow =
+  Platform.OS === 'ios'
+    ? {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+      }
+    : { elevation: 4 };
 
 export const styles = StyleSheet.create({
+  /* ── Layout ── */
   container: {
     flex: 1,
     backgroundColor: colors.background,
   },
   scrollContent: {
-    padding: spacing.lg,
-    paddingTop: spacing.topPadding,
+    paddingHorizontal: 20,
+    paddingTop: spacing.safeTop,
+    paddingBottom: spacing.xxl + 20,
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: spacing.xxl,
+
+  /* ── Menu ── */
+  heroSection: {
+    marginBottom: spacing.xl,
+    paddingTop: spacing.md,
   },
-  headerText: {
-    fontSize: 24,
-    fontWeight: 'bold',
+  heroTitle: {
+    fontSize: 34,
+    fontWeight: '700',
     color: colors.text,
+    letterSpacing: 0.37,
+    marginBottom: 6,
   },
-  title: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: colors.text,
-    marginBottom: spacing.sm,
+  heroSubtitle: {
+    fontSize: 17,
+    fontWeight: '400',
+    color: colors.textSecondary,
+    lineHeight: 22,
   },
-  subtitle: {
-    fontSize: 18,
-    color: colors.textMuted,
+  featureGrid: {
+    gap: 12,
+    marginBottom: spacing.lg,
   },
-  resultBox: {
+  featureCard: {
     backgroundColor: colors.surface,
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.md,
-    borderLeftWidth: 4,
+    borderRadius: radii.lg,
+    padding: 20,
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 16,
+    ...softShadow,
   },
-  resultLabel: {
-    fontSize: 14,
-    color: colors.textMuted,
-    marginBottom: spacing.sm,
+  featureIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  probabilityText: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    marginBottom: spacing.sm,
+  featureCardContent: {
+    flex: 1,
   },
-  severityText: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  infoBox: {
-    backgroundColor: colors.surface,
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
-    marginBottom: spacing.md,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
-  },
-  infoTitle: {
-    fontSize: 16,
+  featureCardTitle: {
+    fontSize: 17,
     fontWeight: '600',
     color: colors.text,
-    marginBottom: spacing.sm,
+    marginBottom: 2,
   },
-  infoText: {
+  featureCardDesc: {
     fontSize: 14,
-    color: colors.textMuted,
-    lineHeight: 20,
+    fontWeight: '400',
+    color: colors.textSecondary,
+    lineHeight: 19,
   },
-  symptomText: {
-    fontSize: 14,
-    color: colors.textMuted,
-    marginBottom: spacing.xs,
+  ctaButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radii.md,
+    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.sm,
+    ...softShadow,
   },
+  ctaButtonText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: colors.onPrimary,
+    letterSpacing: -0.4,
+  },
+
+  /* ── Step header ── */
+  stepHeader: {
+    paddingTop: spacing.safeTop,
+    paddingHorizontal: 20,
+    paddingBottom: spacing.md,
+    backgroundColor: colors.background,
+  },
+  stepLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  stepTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: colors.text,
+    letterSpacing: 0.36,
+  },
+
+  /* ── Step indicator (dots) ── */
+  stepIndicator: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: spacing.md,
+  },
+  stepDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  stepDotActive: {
+    backgroundColor: colors.primary,
+    width: 24,
+    borderRadius: 4,
+  },
+
+  /* ── Camera ── */
   camera: {
     flex: 1,
     width: '100%',
+    borderRadius: radii.lg,
+    overflow: 'hidden',
+    marginHorizontal: 20,
   },
+  cameraOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    paddingBottom: spacing.xl,
+  },
+  captureRing: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 4,
+    borderColor: 'rgba(255,255,255,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  captureInner: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FFFFFF',
+  },
+  captureInnerDisabled: {
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+
   permissionFailed: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  buttonRow: {
+  permissionFailedText: {
+    fontWeight: '400',
+    color: colors.textSecondary,
+    fontSize: 17,
+  },
+
+  /* ── Bottom bar (camera / recording) ── */
+  bottomBar: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    padding: spacing.lg,
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  button: {
-    paddingHorizontal: spacing.xl,
-    paddingVertical: 12,
-    borderRadius: borderRadius.sm,
-    minWidth: 120,
+    justifyContent: 'center',
     alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: 20,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl + 12,
+    backgroundColor: colors.background,
   },
-  buttonStart: {
+  pillButton: {
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pillPrimary: {
     backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
-    marginTop: spacing.lg,
   },
-  buttonCapture: {
-    backgroundColor: colors.success,
-  },
-  buttonRecord: {
-    backgroundColor: colors.primary,
-  },
-  buttonStop: {
+  pillDanger: {
     backgroundColor: colors.danger,
   },
-  buttonCancel: {
-    backgroundColor: colors.neutral,
+  pillSecondary: {
+    backgroundColor: colors.surfaceElevated,
   },
-  buttonDisabled: {
-    opacity: 0.6,
+  pillDisabled: {
+    opacity: 0.4,
   },
-  buttonText: {
-    color: colors.surface,
+  pillText: {
+    fontSize: 17,
     fontWeight: '600',
-    fontSize: 16,
+    color: colors.text,
   },
+  pillTextOnColor: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: colors.onPrimary,
+  },
+
+  /* ── Recording ── */
   recordingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing.lg,
+    padding: spacing.xl,
   },
-  recordingText: {
-    fontSize: 28,
-    fontWeight: 'bold',
+  micCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+    ...softShadow,
+  },
+  micCircleActive: {
+    backgroundColor: 'rgba(255,69,58,0.15)',
+  },
+  micIcon: {
+    fontSize: 48,
+  },
+  recordingLabel: {
+    fontSize: 22,
+    fontWeight: '600',
     color: colors.text,
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
   },
-  instructionText: {
-    fontSize: 16,
-    color: colors.textMuted,
+  recordingHint: {
+    fontSize: 15,
+    fontWeight: '400',
+    color: colors.textSecondary,
     marginBottom: spacing.lg,
     textAlign: 'center',
+    lineHeight: 21,
   },
-  sentenceBox: {
+  sentenceCard: {
     backgroundColor: colors.surface,
-    padding: spacing.lg,
-    borderRadius: borderRadius.md,
-    marginTop: spacing.md,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
-    maxWidth: '100%',
+    padding: 24,
+    borderRadius: radii.lg,
+    width: '100%',
+    maxWidth: 360,
+    ...softShadow,
+  },
+  sentenceQuote: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 8,
   },
   sentenceText: {
-    fontSize: 20,
+    fontSize: 19,
+    fontWeight: '500',
     color: colors.text,
     fontStyle: 'italic',
-    textAlign: 'center',
+    lineHeight: 28,
   },
+
+  /* ── Analyzing ── */
   analyzingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: spacing.lg,
+    padding: spacing.xl,
   },
   analyzingText: {
-    fontSize: 18,
-    marginTop: spacing.md,
-    color: colors.text,
+    fontSize: 17,
+    fontWeight: '500',
+    marginTop: spacing.lg,
+    color: colors.textSecondary,
   },
   errorText: {
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: '500',
     color: colors.danger,
     textAlign: 'center',
+    marginBottom: spacing.md,
+    lineHeight: 21,
+  },
+
+  /* ── Results ── */
+  resultRingContainer: {
+    alignItems: 'center',
+    marginBottom: spacing.xl,
+  },
+  resultRingOuter: {
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    borderWidth: 10,
+    borderColor: colors.surfaceElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  resultPercentage: {
+    fontSize: 52,
+    fontWeight: '700',
+    letterSpacing: -2,
+  },
+  resultPercentSign: {
+    fontSize: 24,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  resultSeverityPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+  },
+  resultSeverityText: {
+    fontSize: 14,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  resultCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    padding: 20,
     marginBottom: 12,
+    ...softShadow,
+  },
+  resultCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
+  resultCardIcon: {
+    fontSize: 20,
+  },
+  resultCardTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  resultCardBody: {
+    fontSize: 15,
+    fontWeight: '400',
+    color: colors.textSecondary,
+    lineHeight: 22,
+  },
+  symptomChip: {
+    backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  symptomChipText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: colors.text,
+  },
+  doctorBanner: {
+    backgroundColor: 'rgba(255,69,58,0.12)',
+    borderRadius: radii.lg,
+    padding: 20,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  doctorBannerIcon: {
+    fontSize: 28,
+  },
+  doctorBannerText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.danger,
+    lineHeight: 21,
   },
 });

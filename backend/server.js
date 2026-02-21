@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import multer from 'multer';
+
 import fetch from 'node-fetch';
 
 const app = express();
@@ -9,10 +9,8 @@ const PORT = process.env.PORT || 3001;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GOOGLE_POLLEN_KEY = process.env.GOOGLE_POLLEN_API_KEY;
 
-const upload = multer({ storage: multer.memoryStorage() });
-
 app.use(cors());
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '30mb' }));
 
 /** Fetch pollen forecast for a location (max 5 days; API does not provide past data) */
 async function getPollenForecast(lat, lon) {
@@ -109,8 +107,15 @@ async function analyzeWithGemini({
   }
 
   const rawBase64 = toRawBase64(imageBase64);
+  // Strip data URL prefix if present (same as image); Gemini expects raw base64 only
+  let rawVoiceBase64 = voiceBase64 ? toRawBase64(voiceBase64) : null;
+  const MAX_VOICE_BASE64_LENGTH = 2_600_000;
+  if (rawVoiceBase64 && rawVoiceBase64.length > MAX_VOICE_BASE64_LENGTH) {
+    rawVoiceBase64 = rawVoiceBase64.slice(0, MAX_VOICE_BASE64_LENGTH);
+  }
+  console.log('[analyzeWithGemini] voiceBase64 length:', rawVoiceBase64?.length ?? 'null');
 
-  const voiceInstruction = voiceBase64
+  const voiceInstruction = rawVoiceBase64
     ? `The user read a standard English sentence aloud. Analyze their **voice** for signs of illness: congestion, nasal quality, hoarseness, raspiness, weakness, fatigue, or other qualities that may indicate they are unwell. Use this together with the eye photo.`
     : 'No voice recording provided.';
 
@@ -141,54 +146,75 @@ Respond with a single JSON object only, no markdown or extra text. In eyeAnalysi
       },
     },
   ];
-  // Cap audio size to avoid huge payloads and timeouts (~2.5MB base64 ≈ 30–60s of m4a)
-  const MAX_VOICE_BASE64_LENGTH = 2_600_000;
-  if (voiceBase64 && voiceBase64.length > MAX_VOICE_BASE64_LENGTH) {
-    voiceBase64 = voiceBase64.slice(0, MAX_VOICE_BASE64_LENGTH);
-  }
-  if (voiceBase64) {
+  if (rawVoiceBase64) {
     parts.push({
       inline_data: {
         mime_type: voiceMimeType || 'audio/m4a',
-        data: voiceBase64,
+        data: rawVoiceBase64,
       },
     });
   }
   parts.push({ text });
 
-  const controller = new AbortController();
-  const timeoutMs = 90_000;
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
+  const body = JSON.stringify({
+    contents: [{ parts }],
+    generationConfig: {
+      max_output_tokens: 2048,
+      response_mime_type: 'application/json',
+    },
+  });
+  const maxRetries = 2;
+  let lastErr = null;
   let res;
-  try {
-    res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timeoutMs = 90_000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts }],
-          generationConfig: {
-            max_output_tokens: 2048,
-            response_mime_type: 'application/json',
-          },
-        }),
+        body,
         signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      if (fetchErr.name === 'AbortError') {
+        throw new Error('Analysis timed out. Try a shorter recording or try again.');
       }
-    );
-  } catch (fetchErr) {
-    clearTimeout(timeoutId);
-    if (fetchErr.name === 'AbortError') {
-      throw new Error('Analysis timed out. Try a shorter recording or try again.');
+      throw fetchErr;
     }
-    throw fetchErr;
-  }
-  clearTimeout(timeoutId);
 
-  if (!res.ok) {
+    if (res.ok) break;
+
     const errText = await res.text();
-    throw new Error(`Gemini API: ${res.status} ${errText}`);
+    lastErr = new Error(`Gemini API: ${res.status} ${errText}`);
+
+    if (res.status === 429 && attempt < maxRetries) {
+      let delayMs = 5000;
+      try {
+        const errJson = JSON.parse(errText);
+        const retryInfo = errJson?.error?.details?.find((d) => d['@type']?.includes('RetryInfo'));
+        const retryDelay = retryInfo?.retryDelay;
+        if (typeof retryDelay === 'string') {
+          const match = retryDelay.match(/^(\d+(?:\.\d+)?)\s*s/);
+          if (match) delayMs = Math.ceil(parseFloat(match[1]) * 1000);
+        }
+      } catch (_) {}
+      console.warn(`[analyzeWithGemini] 429 rate limit, retrying in ${delayMs / 1000}s (attempt ${attempt + 1}/${maxRetries})`);
+      await new Promise((r) => setTimeout(r, Math.min(delayMs, 15000)));
+      continue;
+    }
+
+    if (res.status === 429) {
+      throw new Error(
+        'Gemini daily request limit reached. Try again tomorrow or check your API plan: https://ai.google.dev/gemini-api/docs/rate-limits'
+      );
+    }
+    throw lastErr;
   }
 
   const data = await res.json();
@@ -223,12 +249,8 @@ Respond with a single JSON object only, no markdown or extra text. In eyeAnalysi
   };
 }
 
-/** POST /analyze — form: imageBase64, imageMediaType, latitude, longitude, optional voiceBase64 + voiceMediaType */
-const parseAnalyze = multer({
-  storage: multer.memoryStorage(),
-  limits: { fieldSize: 20 * 1024 * 1024 }, // 20MB per field (image + voice base64)
-}).none();
-app.post('/analyze', parseAnalyze, async (req, res) => {
+/** POST /analyze — JSON body: imageBase64, imageMediaType, latitude, longitude, optional voiceBase64 + voiceMediaType */
+app.post('/analyze', async (req, res) => {
   try {
     const imageBase64 = req.body?.imageBase64;
     const imageMediaType = (req.body?.imageMediaType || 'image/jpeg').trim();
