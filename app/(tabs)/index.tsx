@@ -124,14 +124,15 @@ export default function HomeScreen() {
       return;
     }
     try {
-      let lat = 37.7749;
-      let lon = -122.4194;
+      // Fallback: Trinity College Dublin (College Green)
+      let lat = 53.343792;
+      let lon = -6.254492;
       try {
-        const pos = await Location.getCurrentPositionAsync({});
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.LocationAccuracy?.Highest ?? 5 });
         lat = pos.coords.latitude;
         lon = pos.coords.longitude;
       } catch {
-        // use defaults
+        // use fallback
       }
 
       const uri = finalVoiceUri ?? voiceUri ?? null;
@@ -388,6 +389,19 @@ export default function HomeScreen() {
                 <Text style={styles.resultCardTitle}>Eye Analysis</Text>
               </View>
               <Text style={styles.resultCardBody}>{analysisResult.eyeAnalysis}</Text>
+            </View>
+          )}
+
+          {/* Location (precise coordinates) */}
+          {analysisResult.location && (
+            <View style={styles.resultCard}>
+              <View style={styles.resultCardHeader}>
+                <Text style={styles.resultCardIcon}>📍</Text>
+                <Text style={styles.resultCardTitle}>Location</Text>
+              </View>
+              <Text style={styles.resultCardBody}>
+                {Number(analysisResult.location.latitude).toFixed(6)}, {Number(analysisResult.location.longitude).toFixed(6)}
+              </Text>
             </View>
           )}
 

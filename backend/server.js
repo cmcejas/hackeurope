@@ -352,15 +352,15 @@ Respond with a single JSON object only, no markdown or extra text:
 
   return {
     sicknessProbability: Number(parsed.sicknessProbability) || 0,
-    allergyProbability: Number(parsed.allergyProbability) || 0,
+    allergyProbability: parsed.allergyProbability != null ? Number(parsed.allergyProbability) || 0 : undefined,
     symptoms: Array.isArray(parsed.symptoms) ? parsed.symptoms : [],
-    eyeAnalysis: parsed.eyeAnalysis,
-    environmentalFactors: parsed.environmentalFactors,
-    recommendations: parsed.recommendations,
-    severity: parsed.severity || 'unknown',
+    eyeAnalysis: parsed.eyeAnalysis != null ? String(parsed.eyeAnalysis) : undefined,
+    environmentalFactors: parsed.environmentalFactors != null ? String(parsed.environmentalFactors) : undefined,
+    recommendations: parsed.recommendations != null ? String(parsed.recommendations) : undefined,
+    severity: parsed.severity != null ? String(parsed.severity) : 'unknown',
     shouldSeeDoctor: Boolean(parsed.shouldSeeDoctor),
     isUnilateral: Boolean(parsed.isUnilateral),
-    dischargeType: parsed.dischargeType || 'unknown',
+    dischargeType: parsed.dischargeType != null ? String(parsed.dischargeType) : 'unknown',
   };
 }
 
@@ -408,11 +408,12 @@ app.post('/analyze', async (req, res) => {
       voiceAnalysis,
     });
 
+    const round6 = (n) => Math.round(n * 1e6) / 1e6;
     const result = {
       ...aiAnalysis,
       environmental: environmentalData,
       voice: voiceAnalysis,
-      location: { latitude: lat, longitude: lon },
+      location: { latitude: round6(lat), longitude: round6(lon) },
       timestamp: new Date().toISOString(),
     };
 

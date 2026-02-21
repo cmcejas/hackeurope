@@ -8,10 +8,9 @@ HackEurope is a multimodal allergy diagnostic tool that differentiates between a
 
 **Tech Stack:**
 - Frontend: Expo (React Native) with file-based routing (expo-router)
-- Backend: FastAPI (Python) with Pydantic for FHIR schemas
-- Infrastructure: Docker Compose with PostgreSQL
-- AI Analysis: librosa (audio), google-generativeai (Gemini 1.5 Flash Vision for ocular analysis)
-- External APIs: Open-Meteo (pollen/air quality data)
+- Backend: Node.js (Express) with JSON APIs
+- AI Analysis: Gemini 2.5 Flash Lite (vision + text prompt); optional Python voice service (librosa) for nasality
+- External APIs: Google Pollen API (pollen forecast by location)
 
 ## Architecture
 
@@ -33,9 +32,9 @@ The project follows a monorepo pattern:
 ### Data Flow
 1. **Input Collection (Mobile):** Voice recording, eye photo, symptom history form
 2. **Analysis (Backend):**
-   - Audio: librosa calculates nasality scores (MFCC, Spectral Centroid)
-   - Vision: Gemini 1.5 Flash Vision extracts clinical features (bilateral/unilateral redness, discharge type)
-   - Environmental: Open-Meteo provides 48h historical pollen/AQI data
+   - Vision: Gemini 2.5 Flash Lite analyzes eye photo + text prompt (redness, discharge, laterality)
+   - Optional audio: Python voice service (librosa) for nasality; result passed into Gemini prompt
+   - Environmental: Google Pollen API provides pollen forecast for the user’s location
 3. **Diagnostic Engine:** Combines multimodal inputs with safety guardrails (flags unilateral redness/fever)
 4. **Output:** FHIR R4 Observation and AllergyIntolerance resources with SNOMED-CT coding
 
@@ -106,4 +105,4 @@ The `.planning/` directory contains:
 The backend requires:
 - `DATABASE_URL`: PostgreSQL connection string
 - `GEMINI_API_KEY`: Google AI API key for vision analysis
-- `OPENMETEO_API_URL`: (Optional) Open-Meteo endpoint
+- `GOOGLE_POLLEN_API_KEY`: (Optional) Google Pollen API key for environmental data
