@@ -66,6 +66,12 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 14,
   },
+  logoImage: {
+    width: 52,
+    height: 52,
+    borderRadius: radii.md,
+    marginRight: 14,
+  },
   heroTitle: {
     fontSize: 28,
     fontFamily: fonts.bold,

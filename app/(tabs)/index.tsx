@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   Text,
   View,
+  Image,
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
@@ -541,9 +542,11 @@ export default function HomeScreen() {
         <View style={styles.heroSection}>
           <View style={styles.heroTopRow}>
             <View style={styles.logoRow}>
-              <View style={styles.logoIcon}>
-                <Ionicons name="sparkles" size={28} color={colors.primary} />
-              </View>
+              <Image
+                source={require('../../assets/images/logo.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
               <Text style={styles.heroTitle}>PollenCast</Text>
             </View>
             <TouchableOpacity

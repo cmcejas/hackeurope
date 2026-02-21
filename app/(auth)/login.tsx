@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  Image,
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
@@ -57,9 +58,11 @@ export default function LoginScreen() {
         >
           <View style={styles.content}>
             <View style={styles.header}>
-              <View style={styles.iconContainer}>
-                <Ionicons name="sparkles" size={48} color={colors.primary} />
-              </View>
+              <Image
+                source={require('../../assets/images/logo.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
               <Text style={styles.title}>PollenCast</Text>
               <Text style={styles.subtitle}>AI-powered allergy & health screening</Text>
             </View>
@@ -161,16 +164,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.xxl,
   },
-  iconContainer: {
+  logoImage: {
     width: 80,
     height: 80,
     borderRadius: radii.xl,
-    backgroundColor: colors.surfaceElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   title: {
     fontSize: 32,

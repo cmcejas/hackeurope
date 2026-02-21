@@ -1,6 +1,70 @@
-# HackEurope — Health Check App
+# PollenCast — Health Check App
 
-Mobile app (Expo) that uses a **photo of your eyes**, optional **voice recording**, and **location** to get a simple health assessment. A Node backend sends the image and context to **Gemini** and optional **Google Pollen API**, and an optional Python **voice service** analyzes the recording for nasality.
+Mobile and web app (Expo) that uses a **photo of your eyes**, optional **voice recording**, and **location** to get a simple health assessment. A Node backend sends the image and context to **Gemini** and optional **Google Pollen API**; auth is handled by **Supabase**.
+
+**Live app (Vercel):** [https://pollen-cast.vercel.app](https://pollen-cast.vercel.app)
+
+---
+
+## Run locally
+
+You need **two terminals**: one for the backend, one for the app.
+
+### 1. Clone and install
+
+```bash
+git clone <repo-url>
+cd hackeurope
+npm install
+cd backend && npm install && cd ..
+```
+
+### 2. Environment variables
+
+**Root `.env`** (for the Expo app):
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set:
+
+- `EXPO_PUBLIC_API_URL=http://localhost:3001` (use your machine’s IP if testing on a physical device on the same WiFi)
+- `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` from [Supabase](https://app.supabase.com) → your project → Settings → API
+
+**Backend `backend/.env`** (for the API):
+
+```bash
+cd backend
+cp .env.example .env
+```
+
+Edit `backend/.env` and set at least:
+
+- `GEMINI_API_KEY` — [Get a key](https://ai.google.dev/)
+- `GOOGLE_POLLEN_API_KEY` — optional, for pollen/environmental data
+
+See `backend/.env.example` for all options.
+
+### 3. Start backend and app
+
+**Terminal 1 — Backend:**
+
+```bash
+cd backend
+npm run dev
+```
+
+Runs at `http://localhost:3001`.
+
+**Terminal 2 — App:**
+
+```bash
+npm start
+```
+
+Then press **`w`** for web, or scan the QR code with Expo Go on your phone.  
+If you use a physical device, set `EXPO_PUBLIC_API_URL` in the root `.env` to your computer’s IP (e.g. `http://192.168.1.5:3001`) and restart Expo.
 
 ---
 
@@ -13,7 +77,13 @@ Mobile app (Expo) that uses a **photo of your eyes**, optional **voice recording
 
 ---
 
-## Setup
+## Other ways to run locally
+
+- **Backend + voice service in one go:** run `./start-dev.sh`, then in a second terminal run `npm start`. Stop with `./stop-dev.sh`.
+- **Voice service only** (optional): `cd backend/voice-service && python main.py` — runs at `http://localhost:3002`.
+
+<details>
+<summary>Legacy setup (clone + env only)</summary>
 
 ### 1. Clone and install
 
@@ -109,6 +179,8 @@ npm start
 
 **Using a physical device:** Set `EXPO_PUBLIC_API_URL` in the root `.env` to your computer’s IP (e.g. `http://192.168.1.5:3001`). Find your IP with `ip addr` (Linux) or `ipconfig` (Windows). Restart Expo after changing `.env`.
 
+</details>
+
 ---
 
 ## How to run the tests
@@ -177,6 +249,8 @@ More detail: `backend/QUICKSTART.md`, `backend/voice-service/README.md`.
 ---
 
 ## Deploy to Vercel
+
+**Live demo:** [pollen-cast.vercel.app](https://pollen-cast.vercel.app)
 
 You can host **both the web app and the API** on one Vercel project. The voice service (Python/librosa) must be hosted separately (e.g. Railway, Render, Fly.io).
 
