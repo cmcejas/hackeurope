@@ -49,7 +49,7 @@ export default function ProfileScreen() {
         >
           <TouchableOpacity
             style={styles.backRow}
-            onPress={() => router.back()}
+            onPress={() => router.replace('/(tabs)')}
             activeOpacity={0.7}
           >
             <Ionicons name="arrow-back" size={24} color={colors.text} />

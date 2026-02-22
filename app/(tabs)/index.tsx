@@ -500,8 +500,8 @@ export default function HomeScreen() {
             </GlassCard>
           )}
 
-          {/* Voice analysis — right after eye analysis */}
-          {analysisResult.voice && !analysisResult.voice.error && (
+          {/* Voice analysis — right after eye analysis (always show a voice section) */}
+          {analysisResult.voice && !analysisResult.voice.error ? (
             <GlassCard style={styles.resultCard} innerStyle={styles.resultCardInner}>
               <View style={styles.resultCardHeader}>
                 <Ionicons name="mic-outline" size={18} color={colors.text} />
@@ -624,6 +624,18 @@ export default function HomeScreen() {
                   <Text style={styles.voiceCongestionText}>Nasal congestion detected</Text>
                 </View>
               )}
+            </GlassCard>
+          ) : (
+            <GlassCard style={styles.resultCard} innerStyle={styles.resultCardInner}>
+              <View style={styles.resultCardHeader}>
+                <Ionicons name="mic-outline" size={18} color={colors.text} />
+                <Text style={styles.resultCardTitle}>Voice Analysis</Text>
+              </View>
+              <Text style={styles.resultCardBody}>
+                {analysisResult.voice?.error
+                  ? `Voice analysis unavailable: ${analysisResult.voice.error}`
+                  : 'No voice recording was provided for this check.'}
+              </Text>
             </GlassCard>
           )}
 
