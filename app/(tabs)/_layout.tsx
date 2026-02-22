@@ -1,27 +1,19 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
 
 export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarPosition: Platform.OS === 'web' ? 'top' : 'bottom',
+        tabBarPosition: 'top',
         tabBarActiveTintColor: '#FF9500',
         tabBarInactiveTintColor: '#8E8E93',
-        tabBarStyle: Platform.OS === 'web'
-          ? {
-              backgroundColor: 'rgba(28, 28, 30, 0.95)',
-              borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-              borderBottomWidth: 1,
-            }
-          : {
-              backgroundColor: 'rgba(28, 28, 30, 0.98)',
-              borderTopColor: 'rgba(255, 255, 255, 0.1)',
-              borderTopWidth: 1,
-              paddingBottom: 4,
-            },
+        tabBarStyle: {
+          backgroundColor: 'rgba(28, 28, 30, 0.95)',
+          borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+          borderBottomWidth: 1,
+        },
       }}>
       {/* Hide shared components/theme from tab bar (they live in (tabs) for imports) */}
       <Tabs.Screen name="theme" options={{ href: null }} />

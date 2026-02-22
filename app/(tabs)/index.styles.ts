@@ -24,7 +24,7 @@ export const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: spacing.safeTop,
+    paddingTop: spacing.md,
     paddingBottom: spacing.xxl + 24,
   },
 
@@ -237,7 +237,7 @@ export const styles = StyleSheet.create({
 
   /* ── Step header ── */
   stepHeader: {
-    paddingTop: spacing.safeTop,
+    paddingTop: spacing.md,
     paddingHorizontal: 20,
     paddingBottom: spacing.sm,
   },
@@ -305,10 +305,16 @@ export const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 20,
   },
+  eyeOvalsRow: {
+    flexDirection: 'row',
+    gap: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   eyeOval: {
-    width: 160,
-    height: 110,
-    borderRadius: 80,
+    width: 110,
+    height: 72,
+    borderRadius: 55,
     borderWidth: 2,
     borderColor: 'rgba(255, 149, 0, 0.85)',
     backgroundColor: 'transparent',

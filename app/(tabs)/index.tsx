@@ -301,8 +301,11 @@ export default function HomeScreen() {
               />
               {/* Eye positioning overlay */}
               <View style={styles.cameraOverlay} pointerEvents="none">
-                <Text style={styles.overlayHint}>Position one eye in the oval</Text>
-                <View style={styles.eyeOval} />
+                <Text style={styles.overlayHint}>Position both eyes in the ovals</Text>
+                <View style={styles.eyeOvalsRow}>
+                  <View style={styles.eyeOval} />
+                  <View style={styles.eyeOval} />
+                </View>
               </View>
             </View>
           ) : (
