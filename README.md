@@ -46,6 +46,8 @@ Edit `backend/.env` and set at least:
 
 See `backend/.env.example` for all options.
 
+**First-time onboarding:** New users see a one-time “How it works” + disclaimer screen. To enable this, add the `onboarding_completed_at` column in Supabase — see [docs/SUPABASE_ONBOARDING.md](docs/SUPABASE_ONBOARDING.md).
+
 ### 3. Start backend and app
 
 **Terminal 1 — Backend:**

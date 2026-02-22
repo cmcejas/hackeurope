@@ -12,6 +12,7 @@ import {
 } from '@expo-google-fonts/space-grotesk';
 import 'react-native-reanimated';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
+import { useProfile } from '../hooks/useProfile';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -20,25 +21,41 @@ export const unstable_settings = {
 };
 
 function RootLayoutNav() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const { profile, loading: profileLoading } = useProfile(user?.id);
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return;
+    if (authLoading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
+    const inOnboarding = segments[0] === 'onboarding';
 
     if (!user && !inAuthGroup) {
       router.replace('/(auth)/login');
-    } else if (user && inAuthGroup) {
+      return;
+    }
+
+    if (user && inAuthGroup) {
+      if (profileLoading) return;
+      if (profile?.onboarding_completed_at) {
+        router.replace('/(tabs)');
+      } else {
+        router.replace('/onboarding');
+      }
+      return;
+    }
+
+    if (user && inOnboarding && profile?.onboarding_completed_at) {
       router.replace('/(tabs)');
     }
-  }, [user, loading, segments]);
+  }, [user, authLoading, profile, profileLoading, segments]);
 
   return (
     <Stack>
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     </Stack>
   );
