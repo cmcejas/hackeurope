@@ -198,6 +198,50 @@ export default function HistoryScreen() {
                 </View>
               )}
 
+              {selectedItem.voice && !selectedItem.voice.error && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Voice Analysis</Text>
+                  <Text style={styles.sectionText}>{selectedItem.voice.interpretation}</Text>
+                  <View style={styles.voiceMetricsRow}>
+                    <View style={styles.voiceMetricBox}>
+                      <Text style={styles.voiceMetricLabel}>Nasality</Text>
+                      <Text style={styles.voiceMetricValue}>
+                        {Math.round(selectedItem.voice.nasality_score)}/100
+                      </Text>
+                    </View>
+                    <View style={styles.voiceMetricBox}>
+                      <Text style={styles.voiceMetricLabel}>Confidence</Text>
+                      <Text style={styles.voiceMetricValue}>
+                        {Math.round(selectedItem.voice.confidence)}%
+                      </Text>
+                    </View>
+                    {selectedItem.voice.features?.duration_seconds != null && (
+                      <View style={styles.voiceMetricBox}>
+                        <Text style={styles.voiceMetricLabel}>Duration</Text>
+                        <Text style={styles.voiceMetricValue}>
+                          {selectedItem.voice.features.duration_seconds.toFixed(1)}s
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  {selectedItem.voice.suggests_congestion && (
+                    <View style={styles.voiceCongestionBadge}>
+                      <Ionicons name="water-outline" size={14} color="#ff6b6b" />
+                      <Text style={styles.voiceCongestionText}>Nasal congestion detected</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {selectedItem.voice?.error && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Voice Analysis</Text>
+                  <Text style={styles.sectionText}>
+                    Voice was recorded but analysis was not available for this check.
+                  </Text>
+                </View>
+              )}
+
               {selectedItem.location?.displayName && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Location</Text>
@@ -482,6 +526,46 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: fonts.regular,
     color: colors.textSecondary,
+    marginLeft: spacing.xs,
+  },
+  voiceMetricsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  voiceMetricBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radii.sm,
+    minWidth: 80,
+  },
+  voiceMetricLabel: {
+    fontSize: 12,
+    fontFamily: fonts.medium,
+    color: colors.textTertiary,
+    marginBottom: 2,
+  },
+  voiceMetricValue: {
+    fontSize: 16,
+    fontFamily: fonts.bold,
+    color: colors.text,
+  },
+  voiceCongestionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 107, 107, 0.2)',
+    borderRadius: radii.sm,
+  },
+  voiceCongestionText: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: '#ff6b6b',
     marginLeft: spacing.xs,
   },
 });
