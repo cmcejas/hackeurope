@@ -14,6 +14,11 @@ export default function TabLayout() {
           borderTopWidth: 1,
         },
       }}>
+      {/* Hide shared components/theme from tab bar (they live in (tabs) for imports) */}
+      <Tabs.Screen name="theme" options={{ href: null }} />
+      <Tabs.Screen name="GlassCard" options={{ href: null }} />
+      <Tabs.Screen name="GradientBackground" options={{ href: null }} />
+      <Tabs.Screen name="index.styles" options={{ href: null }} />
       <Tabs.Screen
         name="index"
         options={{
