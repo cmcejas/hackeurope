@@ -7,8 +7,10 @@
   "routes": [
     { "src": "/health", "dest": "/api/index.mjs" },
     { "src": "/analyze", "dest": "/api/index.mjs" },
+    { "src": "/history", "dest": "/api/index.mjs" },
     { "src": "/pollen", "dest": "/api/index.mjs" },
     { "src": "/environmental", "dest": "/api/index.mjs" },
+    { "src": "/test-db", "dest": "/api/index.mjs" },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
