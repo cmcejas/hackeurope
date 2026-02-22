@@ -24,7 +24,20 @@
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png",
-      "backgroundColor": "#1C1C1E"
+      "backgroundColor": "#1C1C1E",
+      "title": "PollenCast – AI Allergy & Eye Health Screening",
+      "description": "Multimodal allergy diagnostic tool that differentiates allergic conjunctivitis from viral and bacterial infections using vocal biomarkers, ocular analysis, and local pollen data.",
+      "lang": "en",
+      "themeColor": "#FF9500",
+      "meta": {
+        "og:title": "PollenCast – AI Allergy & Eye Health Screening",
+        "og:description": "Analyse your eye health and detect allergy symptoms using AI-powered vision, voice, and real-time pollen data.",
+        "og:type": "website",
+        "og:image": "./assets/images/icon.png",
+        "twitter:card": "summary_large_image",
+        "twitter:title": "PollenCast – AI Allergy & Eye Health Screening",
+        "twitter:description": "AI-powered allergy and eye health screening using camera, voice, and pollen data."
+      }
     },
     "plugins": [
       "expo-router",

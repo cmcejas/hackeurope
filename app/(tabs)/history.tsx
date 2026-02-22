@@ -133,7 +133,7 @@ export default function HistoryScreen() {
               onPress={() => setSelectedItem(null)}
               style={styles.backButton}
             >
-              <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
+              <Ionicons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Health Check Details</Text>
           </View>
@@ -264,7 +264,7 @@ export default function HistoryScreen() {
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Health History</Text>
-          <Ionicons name="time-outline" size={28} color={colors.textPrimary} />
+          <Ionicons name="time-outline" size={28} color={colors.text} />
         </View>
 
         {history.length === 0 ? (
@@ -314,6 +314,15 @@ export default function HistoryScreen() {
                           {item.severity.charAt(0).toUpperCase() + item.severity.slice(1)}
                           {item.shouldSeeDoctor ? ' • See doctor' : ''}
                         </Text>
+                      )}
+                      {item.voice && !item.voice.error && (
+                        <View style={styles.voiceRow}>
+                          <Ionicons name="mic-outline" size={12} color={colors.textTertiary} />
+                          <Text style={styles.voiceRowText}>
+                            Nasality {Math.round(item.voice.nasality_score)}/100
+                            {item.voice.suggests_congestion ? ' · congestion' : ''}
+                          </Text>
+                        </View>
                       )}
                     </View>
 
@@ -423,6 +432,17 @@ const styles = StyleSheet.create({
   historySeverity: {
     fontSize: 14,
     fontFamily: fonts.medium,
+  },
+  voiceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+    gap: 4,
+  },
+  voiceRowText: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: colors.textTertiary,
   },
   detailContent: {
     paddingHorizontal: spacing.lg,

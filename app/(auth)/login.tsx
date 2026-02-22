@@ -39,7 +39,19 @@ export default function LoginScreen() {
     setLoading(false);
 
     if (error) {
-      Alert.alert('Login Failed', error.message);
+      const msg = error.message || '';
+      if (/invalid login credentials|invalid email or password|user not found|no user/i.test(msg)) {
+        Alert.alert(
+          'Sign In Failed',
+          "No account found with these credentials. Please check your email and password, or sign up for a new account.",
+          [
+            { text: 'Try Again', style: 'cancel' },
+            { text: 'Sign Up', onPress: () => router.push('/(auth)/signup') },
+          ]
+        );
+      } else {
+        Alert.alert('Sign In Failed', msg);
+      }
     } else {
       router.replace('/(tabs)');
     }

@@ -73,6 +73,7 @@ export default function HomeScreen() {
   const [savedToHistory, setSavedToHistory] = useState(false);
   const [saveHistoryError, setSaveHistoryError] = useState<string | null>(null);
   const [savingToHistory, setSavingToHistory] = useState(false);
+  const recordingStartTime = useRef<number>(0);
   const { width: screenWidth } = useWindowDimensions();
   const contentWidth = Math.min(screenWidth, contentMaxWidth);
   const router = useRouter();
@@ -113,6 +114,7 @@ export default function HomeScreen() {
       await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       await recording.startAsync();
       recordingRef.current = recording;
+      recordingStartTime.current = Date.now();
       setIsRecording(true);
     } catch {
       Alert.alert('Error', 'Failed to start recording');
@@ -122,6 +124,14 @@ export default function HomeScreen() {
 
   const stopRecording = async () => {
     if (!recordingRef.current) return;
+    const durationMs = Date.now() - recordingStartTime.current;
+    if (durationMs < 2000) {
+      Alert.alert(
+        'Recording Too Short',
+        'Please record at least 2 seconds of speech for an accurate voice analysis. Tap Start Recording and read the sentence aloud.'
+      );
+      return;
+    }
     const recording = recordingRef.current;
     recordingRef.current = null;
     setIsRecording(false);
@@ -140,7 +150,8 @@ export default function HomeScreen() {
 
   const runAnalysis = async (finalVoiceUri?: string) => {
     if (!eyePhotoBase64) {
-      setStep('menu');
+      Alert.alert('No Eye Photo', 'Please take a photo of your eye before submitting for analysis.');
+      setStep('camera');
       return;
     }
     console.log('[runAnalysis] Sending to backend:', API_URL);
@@ -288,6 +299,11 @@ export default function HomeScreen() {
                 facing="front"
                 onCameraReady={() => setCameraReady(true)}
               />
+              {/* Eye positioning overlay */}
+              <View style={styles.cameraOverlay} pointerEvents="none">
+                <Text style={styles.overlayHint}>Position one eye in the oval</Text>
+                <View style={styles.eyeOval} />
+              </View>
             </View>
           ) : (
             <View style={styles.permissionFailed}>
@@ -349,9 +365,27 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.bottomBar}>
-          <TouchableOpacity style={[styles.pillButton, styles.pillSecondary]} onPress={reset}>
-            <Text style={styles.pillText}>Cancel</Text>
-          </TouchableOpacity>
+          {!isRecording ? (
+            <TouchableOpacity
+              style={[styles.pillButton, styles.pillSecondary]}
+              onPress={() => {
+                Alert.alert(
+                  'Skip Voice Recording?',
+                  'Voice analysis helps detect nasal congestion. Skipping it may reduce accuracy.',
+                  [
+                    { text: 'Go Back', style: 'cancel' },
+                    { text: 'Skip', onPress: () => runAnalysis(undefined) },
+                  ]
+                );
+              }}
+            >
+              <Text style={styles.pillText}>Skip</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={[styles.pillButton, styles.pillSecondary]} onPress={reset}>
+              <Text style={styles.pillText}>Cancel</Text>
+            </TouchableOpacity>
+          )}
           {!isRecording ? (
             <TouchableOpacity style={[styles.pillButton, styles.pillPrimary]} onPress={startRecording}>
               <Text style={styles.pillTextOnColor}>Start Recording</Text>
@@ -654,9 +688,10 @@ export default function HomeScreen() {
               </View>
               <Text style={styles.resultCardBody}>
                 {(() => {
+                  const raw = analysisResult.environmentalFactors!;
                   const text = analysisResult.location?.displayName
-                    ? analysisResult.environmentalFactors!.replace(/^./, (c) => c.toLowerCase())
-                    : `In your area, ${analysisResult.environmentalFactors!.replace(/^./, (c) => c.toLowerCase())}`;
+                    ? raw.charAt(0).toUpperCase() + raw.slice(1)
+                    : `In your area, ${raw.charAt(0).toLowerCase() + raw.slice(1)}`;
                   return text.split(/(\bpollen\b|\bhigh\b|\bmoderate\b|\blow\b|\bgrass\b|\btree\b|\bweed\b|\bragweed\b|\birritant\b|\bair quality\b|\bhumidity\b|\bwind\b|\bmold\b|\bdust\b|\bsevere\b|\belevated\b)/gi).map((part, i) => {
                     const isHighlight = /^(pollen|high|moderate|low|grass|tree|weed|ragweed|irritant|air quality|humidity|wind|mold|dust|severe|elevated)$/i.test(part);
                     return isHighlight ? (
