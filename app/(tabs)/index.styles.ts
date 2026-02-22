@@ -307,14 +307,14 @@ export const styles = StyleSheet.create({
   },
   eyeOvalsRow: {
     flexDirection: 'row',
-    gap: 24,
+    gap: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },
   eyeOval: {
-    width: 110,
-    height: 72,
-    borderRadius: 55,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     borderWidth: 2,
     borderColor: 'rgba(255, 149, 0, 0.85)',
     backgroundColor: 'transparent',
