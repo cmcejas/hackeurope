@@ -4,6 +4,9 @@ Analyzes audio recordings to detect nasality indicators for allergy diagnosis
 """
 
 import io
+import subprocess
+import tempfile
+import os
 import numpy as np
 import librosa
 from fastapi import FastAPI, File, UploadFile, HTTPException
@@ -239,20 +242,38 @@ async def analyze_voice(audio: UploadFile = File(...)):
         # Read audio file
         audio_bytes = await audio.read()
 
-        # Load audio with librosa
-        # librosa can handle various formats via audioread/soundfile
-        audio_data, sample_rate = librosa.load(
-            io.BytesIO(audio_bytes),
-            sr=None,  # Preserve original sample rate
-            mono=True  # Convert to mono for analysis
-        )
+        # Try loading directly with librosa first; if the format isn't
+        # supported by soundfile (e.g. WebM/Opus from web browsers),
+        # convert to WAV via ffmpeg as a fallback.
+        try:
+            audio_data, sample_rate = librosa.load(
+                io.BytesIO(audio_bytes),
+                sr=None,
+                mono=True,
+            )
+        except Exception:
+            # Fallback: convert to WAV with ffmpeg
+            with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp_in:
+                tmp_in.write(audio_bytes)
+                tmp_in_path = tmp_in.name
+            tmp_out_path = tmp_in_path.replace('.webm', '.wav')
+            try:
+                subprocess.run(
+                    ['ffmpeg', '-y', '-i', tmp_in_path, '-ar', '22050', '-ac', '1', tmp_out_path],
+                    capture_output=True, timeout=10,
+                )
+                audio_data, sample_rate = librosa.load(tmp_out_path, sr=None, mono=True)
+            finally:
+                for p in (tmp_in_path, tmp_out_path):
+                    if os.path.exists(p):
+                        os.unlink(p)
 
         # Validate audio duration (should be 5-10 seconds per requirements)
         duration = len(audio_data) / sample_rate
-        if duration < 2:
+        if duration < 1:
             raise HTTPException(
                 status_code=400,
-                detail="Audio too short (minimum 2 seconds required for reliable analysis)"
+                detail="Audio too short (minimum 1 second required for reliable analysis)"
             )
         if duration > 30:
             # Trim to first 30 seconds if longer
