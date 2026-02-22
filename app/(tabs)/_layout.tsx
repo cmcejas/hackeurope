@@ -6,12 +6,13 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        tabBarPosition: 'top',
         tabBarActiveTintColor: '#FF9500',
         tabBarInactiveTintColor: '#8E8E93',
         tabBarStyle: {
           backgroundColor: 'rgba(28, 28, 30, 0.95)',
-          borderTopColor: 'rgba(255, 255, 255, 0.1)',
-          borderTopWidth: 1,
+          borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+          borderBottomWidth: 1,
         },
       }}>
       {/* Hide shared components/theme from tab bar (they live in (tabs) for imports) */}

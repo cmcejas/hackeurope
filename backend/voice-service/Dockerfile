@@ -15,8 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY main.py .
 
-# Expose port
+# Render (and others) set PORT at runtime
+ENV PORT=3002
 EXPOSE 3002
 
-# Run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3002"]
+# Use PORT from environment so Render can assign a dynamic port
+CMD uvicorn main:app --host 0.0.0.0 --port ${PORT}

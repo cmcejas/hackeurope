@@ -1,0 +1,22 @@
+# Render Blueprint: deploy the PollenCast voice analysis service
+# Docs: https://render.com/docs/blueprint-spec
+#
+# To use:
+# 1. Push this repo to GitHub.
+# 2. Go to https://dashboard.render.com → New → Blueprint.
+# 3. Connect the GitHub repo; Render will read this file and create the service.
+# 4. After deploy, copy the service URL (e.g. https://pollencast-voice.onrender.com).
+# 5. In Vercel → your project → Settings → Environment Variables, add:
+#    VOICE_SERVICE_URL = https://pollencast-voice.onrender.com
+
+services:
+  - type: web
+    name: pollencast-voice
+    runtime: docker
+    rootDir: backend/voice-service
+
+    # Free tier: service sleeps after ~15 min inactivity; first request may take 30–60s
+    plan: free
+
+    # Health check so Render knows the service is up
+    healthCheckPath: /health

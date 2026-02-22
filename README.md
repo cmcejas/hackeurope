@@ -8,7 +8,7 @@ Mobile and web app (Expo) that uses a **photo of your eyes**, optional **voice r
 
 ## Run locally
 
-You need **two terminals**: one for the backend, one for the app.
+You need **two terminals** (backend + app). For **voice analysis**, use a **third terminal** to run the voice service (see below).
 
 ### 1. Clone and install
 
@@ -59,7 +59,21 @@ npm run dev
 
 Runs at `http://localhost:3001`.
 
-**Terminal 2 — App:**
+**Terminal 2 — (Optional) Voice analysis service**
+
+To get **voice analysis** in results (instead of "Voice analysis isn't running..."), start the Python voice service:
+
+```bash
+cd backend/voice-service
+python3 -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python main.py
+```
+
+Runs at `http://localhost:3002`. The Node backend will call it when you submit a recording. You need **ffmpeg** installed if you record on web (browsers often produce WebM).
+
+**Terminal 3 — App:**
 
 ```bash
 npm start

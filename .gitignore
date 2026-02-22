@@ -46,3 +46,13 @@ app-example
 # Vercel
 .vercel
 .env
+
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+backend/voice-service/venv/

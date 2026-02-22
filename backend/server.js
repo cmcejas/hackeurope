@@ -501,6 +501,8 @@ app.post('/analyze', async (req, res) => {
     }
 
     let voiceBuffer = null;
+    const voiceExt = voiceMimeType.includes('webm') ? 'webm' : voiceMimeType.includes('ogg') ? 'ogg' : 'm4a';
+    const voiceFilename = `recording.${voiceExt}`;
     if (voiceBase64) {
       const raw = toRawBase64(voiceBase64);
       voiceBuffer = Buffer.from(raw, 'base64');
@@ -508,7 +510,7 @@ app.post('/analyze', async (req, res) => {
 
     const [environmentalData, voiceAnalysis] = await Promise.all([
       getGooglePollenData(lat, lon),
-      analyzeVoice(voiceBuffer, 'recording.m4a', voiceMimeType),
+      analyzeVoice(voiceBuffer, voiceFilename, voiceMimeType),
     ]);
 
     console.log('[/analyze] Voice analysis result:', JSON.stringify(voiceAnalysis)?.substring(0, 300));

@@ -252,11 +252,16 @@ async def analyze_voice(audio: UploadFile = File(...)):
                 mono=True,
             )
         except Exception:
-            # Fallback: convert to WAV with ffmpeg
-            with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp_in:
+            # Fallback: convert to WAV with ffmpeg (use upload filename extension for correct format)
+            ext = '.webm'
+            if audio.filename and '.' in audio.filename:
+                ext = '.' + audio.filename.rsplit('.', 1)[-1].lower()
+            if ext not in ('.webm', '.m4a', '.ogg', '.opus', '.mp3', '.wav'):
+                ext = '.webm'
+            with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp_in:
                 tmp_in.write(audio_bytes)
                 tmp_in_path = tmp_in.name
-            tmp_out_path = tmp_in_path.replace('.webm', '.wav')
+            tmp_out_path = tmp_in_path.rsplit('.', 1)[0] + '.wav'
             try:
                 subprocess.run(
                     ['ffmpeg', '-y', '-i', tmp_in_path, '-ar', '22050', '-ac', '1', tmp_out_path],
@@ -334,5 +339,7 @@ async def health_check():
 
 
 if __name__ == "__main__":
+    import os
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=3002)
+    port = int(os.environ.get("PORT", "3002"))
+    uvicorn.run(app, host="0.0.0.0", port=port)

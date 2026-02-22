@@ -157,17 +157,18 @@ export default function HomeScreen() {
 
       const uri = finalVoiceUri ?? voiceUri ?? null;
       let voiceBase64: string | null = null;
+      let voiceMediaType = 'audio/m4a';
       if (uri) {
         try {
           if (Platform.OS === 'web' && uri.startsWith('blob:')) {
             // Web: expo-av returns blob: URLs that FileSystem can't read.
             // Fetch the blob and convert to base64 via FileReader.
             const blob = await fetch(uri).then((r) => r.blob());
+            if (blob.type) voiceMediaType = blob.type;
             voiceBase64 = await new Promise<string>((resolve, reject) => {
               const reader = new FileReader();
               reader.onloadend = () => {
                 const dataUrl = reader.result as string;
-                // Strip the data:audio/...;base64, prefix
                 const b64 = dataUrl.split(',')[1];
                 if (b64) resolve(b64);
                 else reject(new Error('FileReader produced empty base64'));
@@ -175,7 +176,7 @@ export default function HomeScreen() {
               reader.onerror = () => reject(reader.error);
               reader.readAsDataURL(blob);
             });
-            console.log('[runAnalysis] Web blob read OK, base64 length:', voiceBase64.length);
+            console.log('[runAnalysis] Web blob read OK, type:', voiceMediaType, 'base64 length:', voiceBase64.length);
           } else {
             // Native (iOS/Android): use FileSystem
             let readUri = uri;
@@ -202,7 +203,7 @@ export default function HomeScreen() {
         imageBase64: eyePhotoBase64,
         imageMediaType: 'image/jpeg',
         voiceBase64,
-        voiceMediaType: 'audio/m4a',
+        voiceMediaType,
         latitude: lat,
         longitude: lon,
         allergyHistory: allergyHistoryText.trim() || undefined,
@@ -633,7 +634,9 @@ export default function HomeScreen() {
               </View>
               <Text style={styles.resultCardBody}>
                 {analysisResult.voice?.error
-                  ? `Voice analysis unavailable: ${analysisResult.voice.error}`
+                  ? /Voice service unavailable|Voice analysis failed|not available/i.test(analysisResult.voice.error)
+                    ? "Voice analysis isn't running for this environment. Your recording was received but couldn't be analyzed. Eye and environmental results are still complete."
+                    : `Voice analysis unavailable: ${analysisResult.voice.error}`
                   : 'No voice recording was provided for this check.'}
               </Text>
             </GlassCard>
