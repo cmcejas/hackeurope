@@ -109,3 +109,36 @@ export async function fetchHistory(userId: string): Promise<HistoryItem[]> {
   const data = (await response.json()) as { history: HistoryItem[] };
   return data.history || [];
 }
+
+/**
+ * Explicitly save the current analysis result to the user's history.
+ * Use this when the user taps "Save to history" on the results screen.
+ */
+export async function saveResultToHistory(
+  userId: string,
+  result: AnalysisResult
+): Promise<{ id: string }> {
+  const response = await fetch(`${API_URL}/save-history`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({ userId, result }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    let message = text || `Failed to save: ${response.status}`;
+    try {
+      const json = JSON.parse(text) as { error?: string };
+      if (json?.error) message = json.error;
+    } catch {
+      // use message as-is
+    }
+    throw new Error(message);
+  }
+
+  const data = (await response.json()) as { saved: boolean; id: string };
+  return { id: data.id };
+}

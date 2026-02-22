@@ -216,10 +216,17 @@ export const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: radii.md,
     paddingVertical: 16,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
     marginTop: spacing.xs,
     ...cardShadow,
+  },
+  saveHistoryDone: {
+    backgroundColor: colors.successMuted,
+    borderWidth: 1,
+    borderColor: 'rgba(92, 184, 92, 0.25)',
   },
   ctaButtonText: {
     fontSize: 16,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   StyleSheet,
   RefreshControl,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { fetchHistory, type HistoryItem } from '../../lib/api';
@@ -55,9 +56,12 @@ export default function HistoryScreen() {
     }
   }, [user?.id]);
 
-  useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
+  // Refetch when the user opens / focuses the History tab
+  useFocusEffect(
+    useCallback(() => {
+      loadHistory();
+    }, [loadHistory])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);

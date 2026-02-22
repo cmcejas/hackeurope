@@ -20,7 +20,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Location from 'expo-location';
 
 import { useHealthCheckPermissions } from '../../hooks/useHealthCheckPermissions';
-import { analyzeHealth, checkBackend } from '../../lib/api';
+import { analyzeHealth, checkBackend, saveResultToHistory } from '../../lib/api';
 import type { AnalysisResult, Step } from '../../lib/types';
 import { colors, getSeverityColor, contentMaxWidth, radii } from './theme';
 import { styles } from './index.styles';
@@ -69,6 +69,9 @@ export default function HomeScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [allergyHistoryText, setAllergyHistoryText] = useState('');
   const [tileIndex, setTileIndex] = useState(0);
+  const [savedToHistory, setSavedToHistory] = useState(false);
+  const [saveHistoryError, setSaveHistoryError] = useState<string | null>(null);
+  const [savingToHistory, setSavingToHistory] = useState(false);
   const { width: screenWidth } = useWindowDimensions();
   const contentWidth = Math.min(screenWidth, contentMaxWidth);
   const router = useRouter();
@@ -216,6 +219,24 @@ export default function HomeScreen() {
     setAnalysisResult(null);
     setAnalysisError(null);
     setAllergyHistoryText('');
+    setSavedToHistory(false);
+    setSaveHistoryError(null);
+  };
+
+  const handleSaveToHistory = async () => {
+    if (!user?.id || !analysisResult || savingToHistory) return;
+    setSavingToHistory(true);
+    setSaveHistoryError(null);
+    try {
+      await saveResultToHistory(user.id, analysisResult);
+      setSavedToHistory(true);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to save';
+      setSaveHistoryError(msg);
+      Alert.alert('Save failed', msg);
+    } finally {
+      setSavingToHistory(false);
+    }
   };
 
   const onTilesScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -501,6 +522,44 @@ export default function HomeScreen() {
                 {analysisResult.voice.suggests_congestion ? '\nSuggests nasal congestion.' : ''}
               </Text>
             </GlassCard>
+          )}
+
+          {/* Save to history — explicit save with feedback */}
+          {user ? (
+            savedToHistory ? (
+              <View style={[styles.ctaButton, styles.saveHistoryDone]}>
+                <Ionicons name="checkmark-circle" size={22} color={colors.success} />
+                <Text style={[styles.pillText, { color: colors.success }]}>Saved to history</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.ctaButton, styles.pillSecondary, { marginBottom: 12 }]}
+                onPress={handleSaveToHistory}
+                disabled={savingToHistory}
+                activeOpacity={0.8}
+              >
+                {savingToHistory ? (
+                  <>
+                    <ActivityIndicator size="small" color={colors.text} />
+                    <Text style={styles.pillText}>Saving…</Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="bookmark-outline" size={20} color={colors.text} />
+                    <Text style={styles.pillText}>Save to history</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )
+          ) : (
+            <TouchableOpacity
+              style={[styles.ctaButton, styles.pillSecondary, { marginBottom: 12 }]}
+              onPress={() => router.push('/(tabs)/profile')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="person-outline" size={20} color={colors.text} />
+              <Text style={styles.pillText}>Log in to save to history</Text>
+            </TouchableOpacity>
           )}
 
           <TouchableOpacity style={styles.ctaButton} onPress={reset}>

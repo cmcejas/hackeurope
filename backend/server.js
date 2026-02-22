@@ -538,15 +538,7 @@ app.post('/analyze', async (req, res) => {
       timestamp: new Date().toISOString(),
     };
 
-    // Save to database (non-blocking, don't fail if save fails)
-    const userId = req.body?.userId || null;
-    saveAnalysisToDatabase({
-      userId,
-      result,
-      lat: round6(lat),
-      lon: round6(lon),
-      allergyHistory,
-    }).catch(err => console.error('[/analyze] Database save failed:', err));
+    // History is saved only when the user taps "Save to history" (POST /save-history).
 
     res.json(result);
   } catch (err) {
@@ -606,6 +598,67 @@ app.get('/history', async (req, res) => {
   } catch (err) {
     console.error('[/history] Error:', err);
     res.status(500).json({ error: err.message || 'Failed to fetch history' });
+  }
+});
+
+/** POST /save-history - Explicitly save a result to history (body: { userId, result }). */
+app.post('/save-history', async (req, res) => {
+  try {
+    const { userId, result } = req.body || {};
+
+    if (!userId || !result) {
+      return res.status(400).json({ error: 'Missing required body: userId, result' });
+    }
+
+    if (!supabase) {
+      return res.status(503).json({ error: 'History not available (Supabase not configured)' });
+    }
+
+    const lat = Number(result.location?.latitude) || 0;
+    const lon = Number(result.location?.longitude) || 0;
+    const insertData = {
+      user_id: userId,
+      eye_image_url: 'base64://not-stored',
+      voice_recording_url: result.voice && !result.voice.error ? 'base64://not-stored' : null,
+      latitude: lat,
+      longitude: lon,
+      location_display_name: result.location?.displayName || null,
+      pollen_data: result.environmental?.error ? null : result.environmental,
+      environmental_summary: result.environmentalFactors || null,
+      symptom_description: null,
+      allergy_history_snapshot: null,
+      sickness_probability: result.sicknessProbability ?? 0,
+      sickness_reasoning: null,
+      allergy_probability: result.allergyProbability ?? null,
+      allergy_reasoning: null,
+      severity: result.severity || 'none',
+      symptoms: Array.isArray(result.symptoms) ? result.symptoms : [],
+      eye_analysis: result.eyeAnalysis || null,
+      voice_analysis: result.voice || null,
+      recommendations: result.recommendations || null,
+      should_see_doctor: Boolean(result.shouldSeeDoctor),
+      is_unilateral: Boolean(result.isUnilateral),
+      discharge_type: result.dischargeType || 'unknown',
+      gemini_raw_response: null,
+      analysis_version: '2.0',
+    };
+
+    const { data, error } = await supabase
+      .from('analysis_history')
+      .insert(insertData)
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('[/save-history] Insert error:', error.code, error.message);
+      return res.status(500).json({ error: 'Failed to save to history', details: error.message });
+    }
+
+    console.log('[/save-history] Saved for user', userId, 'id', data.id);
+    res.json({ saved: true, id: data.id });
+  } catch (err) {
+    console.error('[/save-history] Error:', err);
+    res.status(500).json({ error: err.message || 'Failed to save to history' });
   }
 });
 
