@@ -511,6 +511,7 @@ app.post('/analyze', async (req, res) => {
       analyzeVoice(voiceBuffer, 'recording.m4a', voiceMimeType),
     ]);
 
+    console.log('[/analyze] Voice analysis result:', JSON.stringify(voiceAnalysis)?.substring(0, 300));
     console.log('[/analyze] Calling Gemini (voice:', !!voiceAnalysis, ', pollen:', !environmentalData?.error, ')');
 
     const allergyHistory = typeof req.body?.allergyHistory === 'string' ? req.body.allergyHistory : '';
