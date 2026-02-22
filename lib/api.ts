@@ -51,14 +51,27 @@ export async function analyzeHealth(payload: AnalyzePayload): Promise<AnalysisRe
     body.userId = payload.userId;
   }
 
-  const response = await fetch(`${API_URL}/analyze`, {
-    method: 'POST',
-    body: JSON.stringify(body),
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 90_000); // 90s to match backend
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/analyze`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('Analysis timed out. Check that the backend is running and try again.');
+    }
+    throw err;
+  }
+  clearTimeout(timeoutId);
 
   if (!response.ok) {
     const text = await response.text();

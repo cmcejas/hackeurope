@@ -181,14 +181,24 @@ function calculateGooglePollenRisk(pollenScore) {
 /** Analyze voice via Python librosa microservice. Accepts a Buffer. */
 async function analyzeVoice(voiceBuffer, filename = 'recording.m4a', mimeType = 'audio/m4a') {
   if (!voiceBuffer) return null;
+  if (!VOICE_SERVICE_URL) {
+    console.warn('Voice service: VOICE_SERVICE_URL not set — voice analysis disabled');
+    return { error: 'Voice service not configured', details: 'Set VOICE_SERVICE_URL (e.g. http://localhost:3002 for local dev).' };
+  }
+  const VOICE_TIMEOUT_MS = 30_000;
+  let timeoutId;
   try {
     const formData = new FormData();
     formData.append('audio', voiceBuffer, { filename, contentType: mimeType });
+    const controller = new AbortController();
+    timeoutId = setTimeout(() => controller.abort(), VOICE_TIMEOUT_MS);
     const response = await fetch(`${VOICE_SERVICE_URL}/analyze`, {
       method: 'POST',
       body: formData,
       headers: formData.getHeaders(),
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Voice service error:', response.status, errorText);
@@ -196,8 +206,10 @@ async function analyzeVoice(voiceBuffer, filename = 'recording.m4a', mimeType = 
     }
     return await response.json();
   } catch (err) {
-    console.error('Voice analysis error:', err.message);
-    return { error: 'Voice service unavailable', details: err.message };
+    if (timeoutId) clearTimeout(timeoutId);
+    const msg = err?.name === 'AbortError' ? 'Voice analysis timed out' : err.message;
+    console.error('Voice analysis error:', msg);
+    return { error: 'Voice service unavailable', details: msg };
   }
 }
 
@@ -494,6 +506,7 @@ app.post('/analyze', async (req, res) => {
       bodyKeys: Object.keys(body),
       hasVoice: Boolean(voiceBase64),
       voiceLen: voiceBase64?.length ?? 0,
+      voiceServiceConfigured: Boolean(VOICE_SERVICE_URL),
     });
 
     if (!imageBase64 || Number.isNaN(lat) || Number.isNaN(lon)) {
@@ -508,9 +521,10 @@ app.post('/analyze', async (req, res) => {
       voiceBuffer = Buffer.from(raw, 'base64');
     }
 
-    const [environmentalData, voiceAnalysis] = await Promise.all([
+    const [environmentalData, voiceAnalysis, displayName] = await Promise.all([
       getGooglePollenData(lat, lon),
       analyzeVoice(voiceBuffer, voiceFilename, voiceMimeType),
+      reverseGeocodeWithGoogle(lat, lon),
     ]);
 
     console.log('[/analyze] Voice analysis result:', JSON.stringify(voiceAnalysis)?.substring(0, 300));
@@ -528,7 +542,6 @@ app.post('/analyze', async (req, res) => {
     });
 
     const round6 = (n) => Math.round(n * 1e6) / 1e6;
-    const displayName = await reverseGeocodeWithGoogle(lat, lon);
     const result = {
       ...aiAnalysis,
       environmental: environmentalData,

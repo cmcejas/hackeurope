@@ -22,6 +22,7 @@ import * as Location from 'expo-location';
 
 import { useHealthCheckPermissions } from '../../hooks/useHealthCheckPermissions';
 import { analyzeHealth, checkBackend, saveResultToHistory } from '../../lib/api';
+import { API_URL } from '../../lib/config';
 import type { AnalysisResult, Step } from '../../lib/types';
 import { colors, getSeverityColor, contentMaxWidth, radii } from './theme';
 import { styles } from './index.styles';
@@ -35,7 +36,6 @@ const READ_ALOUD_SENTENCES = [
   'How much wood would a woodchuck chuck if a woodchuck could chuck wood?',
   'The sky is clear and the sun is bright today.',
   'Please read this sentence in your normal speaking voice.',
-  'Pack my box with five dozen liquor jugs.',
   'The five boxing wizards jump quickly.',
 ];
 
@@ -143,6 +143,7 @@ export default function HomeScreen() {
       setStep('menu');
       return;
     }
+    console.log('[runAnalysis] Sending to backend:', API_URL);
     try {
       // Fallback: Trinity College Dublin (College Green)
       let lat = 53.343792;
