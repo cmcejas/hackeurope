@@ -26,6 +26,7 @@ import { colors, getSeverityColor, contentMaxWidth, radii } from './theme';
 import { styles } from './index.styles';
 import { GradientBackground } from './GradientBackground';
 import { GlassCard } from './GlassCard';
+import { useAuth } from '../../contexts/AuthContext';
 
 const READ_ALOUD_SENTENCES = [
   'The quick brown fox jumps over the lazy dog.',
@@ -54,6 +55,7 @@ function StepDots({ current }: { current: number }) {
 
 export default function HomeScreen() {
   const { cameraPermission, requestAll } = useHealthCheckPermissions();
+  const { user } = useAuth();
   const cameraRef = useRef<InstanceType<typeof CameraView>>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
 
@@ -180,6 +182,7 @@ export default function HomeScreen() {
         latitude: lat,
         longitude: lon,
         allergyHistory: allergyHistoryText.trim() || undefined,
+        userId: user?.id || null,
       });
       setAnalysisError(null);
       setAnalysisResult(result);

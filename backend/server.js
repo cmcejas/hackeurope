@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import fetch from 'node-fetch';
 import FormData from 'form-data';
+import { supabase } from './supabaseClient.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -197,6 +198,79 @@ async function analyzeVoice(voiceBuffer, filename = 'recording.m4a', mimeType = 
   } catch (err) {
     console.error('Voice analysis error:', err.message);
     return { error: 'Voice service unavailable', details: err.message };
+  }
+}
+
+/* ═══════════════  DATABASE  ═══════════════ */
+
+/**
+ * Save analysis result to Supabase database
+ * Returns the saved record ID or null if save fails/Supabase not configured
+ */
+async function saveAnalysisToDatabase({ userId, result, lat, lon, allergyHistory }) {
+  if (!supabase) {
+    console.log('[DB] ⚠️  Supabase not configured, skipping history save');
+    return null;
+  }
+
+  if (!userId) {
+    console.warn('[DB] ⚠️  No userId provided, skipping history save');
+    console.warn('[DB] userId received:', userId);
+    return null;
+  }
+
+  console.log('[DB] 💾 Attempting to save analysis for user:', userId);
+
+  try {
+    const insertData = {
+      user_id: userId,
+      eye_image_url: 'base64://not-stored', // Placeholder since we're not storing images
+      voice_recording_url: result.voice ? 'base64://not-stored' : null,
+      latitude: lat,
+      longitude: lon,
+      location_display_name: result.location?.displayName || null,
+      pollen_data: result.environmental?.error ? null : result.environmental,
+      environmental_summary: result.environmentalFactors || null,
+      symptom_description: null,
+      allergy_history_snapshot: allergyHistory || null,
+      sickness_probability: result.sicknessProbability,
+      sickness_reasoning: null,
+      allergy_probability: result.allergyProbability || null,
+      allergy_reasoning: null,
+      severity: result.severity || 'none',
+      symptoms: result.symptoms || [],
+      eye_analysis: result.eyeAnalysis || null,
+      voice_analysis: result.voice || null,
+      recommendations: result.recommendations || null,
+      should_see_doctor: result.shouldSeeDoctor || false,
+      is_unilateral: result.isUnilateral || false,
+      discharge_type: result.dischargeType || 'unknown',
+      gemini_raw_response: null,
+      analysis_version: '2.0'
+    };
+
+    console.log('[DB] Insert data prepared, sickness probability:', insertData.sickness_probability);
+
+    const { data, error } = await supabase
+      .from('analysis_history')
+      .insert(insertData)
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('[DB] ❌ Failed to save analysis');
+      console.error('[DB] Error code:', error.code);
+      console.error('[DB] Error message:', error.message);
+      console.error('[DB] Error details:', JSON.stringify(error, null, 2));
+      return null;
+    }
+
+    console.log('[DB] ✅ Analysis saved successfully! ID:', data.id);
+    return data.id;
+  } catch (err) {
+    console.error('[DB] ❌ Exception saving analysis:', err.message);
+    console.error('[DB] Stack:', err.stack);
+    return null;
   }
 }
 
@@ -464,6 +538,16 @@ app.post('/analyze', async (req, res) => {
       timestamp: new Date().toISOString(),
     };
 
+    // Save to database (non-blocking, don't fail if save fails)
+    const userId = req.body?.userId || null;
+    saveAnalysisToDatabase({
+      userId,
+      result,
+      lat: round6(lat),
+      lon: round6(lon),
+      allergyHistory,
+    }).catch(err => console.error('[/analyze] Database save failed:', err));
+
     res.json(result);
   } catch (err) {
     console.error('Analyze error:', err);
@@ -471,7 +555,133 @@ app.post('/analyze', async (req, res) => {
   }
 });
 
+/** GET /history?userId=<uuid> - Fetch user's analysis history */
+app.get('/history', async (req, res) => {
+  try {
+    const userId = req.query.userId;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'Missing required query parameter: userId' });
+    }
+
+    if (!supabase) {
+      return res.status(503).json({ error: 'History feature not available (Supabase not configured)' });
+    }
+
+    const { data, error } = await supabase
+      .from('analysis_history')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[/history] Database error:', error);
+      return res.status(500).json({ error: 'Failed to fetch history' });
+    }
+
+    // Transform database records to match frontend AnalysisResult type
+    const history = (data || []).map(record => ({
+      id: record.id,
+      sicknessProbability: record.sickness_probability,
+      allergyProbability: record.allergy_probability,
+      symptoms: record.symptoms,
+      eyeAnalysis: record.eye_analysis,
+      environmentalFactors: record.environmental_summary,
+      recommendations: record.recommendations,
+      severity: record.severity,
+      shouldSeeDoctor: record.should_see_doctor,
+      isUnilateral: record.is_unilateral,
+      dischargeType: record.discharge_type,
+      voice: record.voice_analysis,
+      environmental: record.pollen_data,
+      location: {
+        latitude: Number(record.latitude),
+        longitude: Number(record.longitude),
+        displayName: record.location_display_name,
+      },
+      timestamp: record.created_at,
+    }));
+
+    res.json({ history });
+  } catch (err) {
+    console.error('[/history] Error:', err);
+    res.status(500).json({ error: err.message || 'Failed to fetch history' });
+  }
+});
+
 app.get('/health', (_, res) => res.json({ ok: true }));
+
+/** GET /test-db - Test database connection and table existence */
+app.get('/test-db', async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.json({
+        connected: false,
+        error: 'Supabase client not initialized. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env',
+        envCheck: {
+          hasUrl: !!process.env.SUPABASE_URL,
+          hasKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+          urlPrefix: process.env.SUPABASE_URL?.substring(0, 20) + '...'
+        }
+      });
+    }
+
+    // Try to count records in analysis_history table
+    const { data, error, count } = await supabase
+      .from('analysis_history')
+      .select('*', { count: 'exact', head: true });
+
+    if (error) {
+      return res.json({
+        connected: true,
+        tableExists: false,
+        errorCode: error.code,
+        errorMessage: error.message,
+        errorDetails: error.details,
+        errorHint: error.hint
+      });
+    }
+
+    // Also try to insert a test record with a fake user ID to see if writes work
+    const testUserId = '00000000-0000-0000-0000-000000000000';
+    const { error: insertError } = await supabase
+      .from('analysis_history')
+      .insert({
+        user_id: testUserId,
+        eye_image_url: 'test',
+        latitude: 0,
+        longitude: 0,
+        sickness_probability: 0
+      });
+
+    // Delete the test record if it was created
+    if (!insertError) {
+      await supabase
+        .from('analysis_history')
+        .delete()
+        .eq('user_id', testUserId);
+    }
+
+    return res.json({
+      connected: true,
+      tableExists: true,
+      recordCount: count || 0,
+      canWrite: !insertError,
+      writeError: insertError ? {
+        code: insertError.code,
+        message: insertError.message,
+        details: insertError.details
+      } : null,
+      message: 'Database connection successful!'
+    });
+  } catch (err) {
+    res.json({
+      connected: false,
+      error: err.message,
+      stack: err.stack
+    });
+  }
+});
 
 app.get('/pollen', async (req, res) => {
   try {

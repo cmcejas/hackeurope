@@ -26,6 +26,8 @@ export interface AnalyzePayload {
   longitude: number;
   /** Optional: user-provided allergy history and symptoms (sent to AI). */
   allergyHistory?: string | null;
+  /** Optional: user ID for saving to history */
+  userId?: string | null;
 }
 
 /**
@@ -43,6 +45,10 @@ export async function analyzeHealth(payload: AnalyzePayload): Promise<AnalysisRe
 
   if (payload.allergyHistory?.trim()) {
     body.allergyHistory = payload.allergyHistory.trim();
+  }
+
+  if (payload.userId) {
+    body.userId = payload.userId;
   }
 
   const response = await fetch(`${API_URL}/analyze`, {
@@ -71,4 +77,35 @@ export async function analyzeHealth(payload: AnalyzePayload): Promise<AnalysisRe
     throw new Error('Invalid analysis response');
   }
   return data;
+}
+
+export interface HistoryItem extends AnalysisResult {
+  id: string;
+}
+
+/**
+ * Fetches user's health check history from the backend
+ */
+export async function fetchHistory(userId: string): Promise<HistoryItem[]> {
+  const response = await fetch(`${API_URL}/history?userId=${encodeURIComponent(userId)}`, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    let message = text || `Failed to fetch history: ${response.status}`;
+    try {
+      const json = JSON.parse(text) as { error?: string };
+      if (json?.error) message = json.error;
+    } catch {
+      // use message as-is
+    }
+    throw new Error(message);
+  }
+
+  const data = (await response.json()) as { history: HistoryItem[] };
+  return data.history || [];
 }
