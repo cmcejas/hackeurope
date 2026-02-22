@@ -541,4 +541,94 @@ export const styles = StyleSheet.create({
     color: colors.danger,
     lineHeight: 20,
   },
+
+  /* ── Keyword highlights ── */
+  highlightedKeyword: {
+    fontFamily: fonts.semibold,
+    color: colors.primary,
+  },
+
+  /* ── Voice Analysis ── */
+  voiceMetricsContainer: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  voiceMetricBox: {
+    flex: 1,
+    backgroundColor: 'rgba(245, 166, 35, 0.06)',
+    borderRadius: radii.md,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 166, 35, 0.12)',
+    alignItems: 'center',
+  },
+  voiceMetricLabel: {
+    fontSize: 11,
+    fontFamily: fonts.medium,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  voiceMetricValue: {
+    fontSize: 18,
+    fontFamily: fonts.bold,
+    color: colors.text,
+  },
+  voiceStatsContainer: {
+    marginTop: 12,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  voiceStatsTitle: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: colors.text,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 12,
+  },
+  voiceStatRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  voiceStatLabel: {
+    fontSize: 14,
+    fontFamily: fonts.medium,
+    color: colors.textSecondary,
+  },
+  voiceStatValue: {
+    fontSize: 14,
+    fontFamily: fonts.semibold,
+    color: colors.text,
+  },
+  voiceStatDescription: {
+    fontSize: 12,
+    fontFamily: fonts.regular,
+    color: colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: 12,
+    marginLeft: 4,
+  },
+  voiceCongestionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 107, 107, 0.08)',
+    borderRadius: radii.md,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 107, 0.2)',
+  },
+  voiceCongestionText: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: '#ff6b6b',
+  },
 });

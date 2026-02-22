@@ -9,6 +9,7 @@ import {
   Alert,
   TextInput,
   useWindowDimensions,
+  Platform,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
@@ -158,17 +159,37 @@ export default function HomeScreen() {
       let voiceBase64: string | null = null;
       if (uri) {
         try {
-          let readUri = uri;
-          if (uri.startsWith('content://') && FileSystem.cacheDirectory) {
-            const dest = `${FileSystem.cacheDirectory}voice_upload_${Date.now()}.m4a`;
-            try {
-              await FileSystem.copyAsync({ from: uri, to: dest });
-              readUri = dest;
-            } catch (copyErr) {
-              console.warn('[runAnalysis] Copy content:// to cache failed, trying direct read:', copyErr);
+          if (Platform.OS === 'web' && uri.startsWith('blob:')) {
+            // Web: expo-av returns blob: URLs that FileSystem can't read.
+            // Fetch the blob and convert to base64 via FileReader.
+            const blob = await fetch(uri).then((r) => r.blob());
+            voiceBase64 = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const dataUrl = reader.result as string;
+                // Strip the data:audio/...;base64, prefix
+                const b64 = dataUrl.split(',')[1];
+                if (b64) resolve(b64);
+                else reject(new Error('FileReader produced empty base64'));
+              };
+              reader.onerror = () => reject(reader.error);
+              reader.readAsDataURL(blob);
+            });
+            console.log('[runAnalysis] Web blob read OK, base64 length:', voiceBase64.length);
+          } else {
+            // Native (iOS/Android): use FileSystem
+            let readUri = uri;
+            if (uri.startsWith('content://') && FileSystem.cacheDirectory) {
+              const dest = `${FileSystem.cacheDirectory}voice_upload_${Date.now()}.m4a`;
+              try {
+                await FileSystem.copyAsync({ from: uri, to: dest });
+                readUri = dest;
+              } catch (copyErr) {
+                console.warn('[runAnalysis] Copy content:// to cache failed, trying direct read:', copyErr);
+              }
             }
+            voiceBase64 = await FileSystem.readAsStringAsync(readUri, { encoding: 'base64' });
           }
-          voiceBase64 = await FileSystem.readAsStringAsync(readUri, { encoding: 'base64' });
         } catch (e) {
           console.warn('[runAnalysis] Could not read voice file:', uri, e);
           Alert.alert('Voice skipped', `Could not read the recording file. Analysis will proceed without voice.\n\n${e}`);
@@ -466,7 +487,143 @@ export default function HomeScreen() {
                 <Ionicons name="eye-outline" size={18} color={colors.text} />
                 <Text style={styles.resultCardTitle}>Eye Analysis</Text>
               </View>
-              <Text style={styles.resultCardBody}>{analysisResult.eyeAnalysis}</Text>
+              <Text style={styles.resultCardBody}>
+                {analysisResult.eyeAnalysis.split(/(\bredness\b|\bredness detected\b|\bdischarge\b|\btearing\b|\bswelling\b|\bswollen\b|\binflammation\b|\bconjunctivitis\b|\bunilateral\b|\bbilateral\b|\bnormal\b|\bclear\b|\bhealthy\b)/gi).map((part, i) => {
+                  const isHighlight = /^(redness|redness detected|discharge|tearing|swelling|swollen|inflammation|conjunctivitis|unilateral|bilateral|normal|clear|healthy)$/i.test(part);
+                  return isHighlight ? (
+                    <Text key={i} style={styles.highlightedKeyword}>{part}</Text>
+                  ) : (
+                    <Text key={i}>{part}</Text>
+                  );
+                })}
+              </Text>
+            </GlassCard>
+          )}
+
+          {/* Voice analysis — right after eye analysis */}
+          {analysisResult.voice && !analysisResult.voice.error && (
+            <GlassCard style={styles.resultCard} innerStyle={styles.resultCardInner}>
+              <View style={styles.resultCardHeader}>
+                <Ionicons name="mic-outline" size={18} color={colors.text} />
+                <Text style={styles.resultCardTitle}>Voice Analysis</Text>
+              </View>
+
+              {/* Main interpretation with highlights */}
+              <Text style={styles.resultCardBody}>
+                {analysisResult.voice.interpretation.split(/(\bhigh nasality\b|\bmoderate nasality\b|\bmild nasality\b|\blow nasality\b|\bnasal congestion\b|\bcongestion\b|\ballergic rhinitis\b|\bnormal\b|\bnasal quality\b)/gi).map((part, i) => {
+                  const isHighlight = /^(high nasality|moderate nasality|mild nasality|low nasality|nasal congestion|congestion|allergic rhinitis|normal|nasal quality)$/i.test(part);
+                  return isHighlight ? (
+                    <Text key={i} style={styles.highlightedKeyword}>{part}</Text>
+                  ) : (
+                    <Text key={i}>{part}</Text>
+                  );
+                })}
+              </Text>
+
+              {/* Key Metrics */}
+              <View style={styles.voiceMetricsContainer}>
+                <View style={styles.voiceMetricBox}>
+                  <Text style={styles.voiceMetricLabel}>Nasality Score</Text>
+                  <Text style={styles.voiceMetricValue}>
+                    {Math.round(analysisResult.voice.nasality_score)}/100
+                  </Text>
+                </View>
+                <View style={styles.voiceMetricBox}>
+                  <Text style={styles.voiceMetricLabel}>Confidence</Text>
+                  <Text style={styles.voiceMetricValue}>
+                    {Math.round(analysisResult.voice.confidence)}%
+                  </Text>
+                </View>
+                <View style={styles.voiceMetricBox}>
+                  <Text style={styles.voiceMetricLabel}>Duration</Text>
+                  <Text style={styles.voiceMetricValue}>
+                    {analysisResult.voice.features?.duration_seconds?.toFixed(1)}s
+                  </Text>
+                </View>
+              </View>
+
+              {/* Detailed Statistics */}
+              {analysisResult.voice.features && (
+                <View style={styles.voiceStatsContainer}>
+                  <Text style={styles.voiceStatsTitle}>Acoustic Analysis</Text>
+
+                  {/* Spectral Features */}
+                  <View style={styles.voiceStatRow}>
+                    <Text style={styles.voiceStatLabel}>Voice Frequency Center</Text>
+                    <Text style={styles.voiceStatValue}>
+                      {Math.round(analysisResult.voice.features.spectral?.spectral_centroid_mean || 0)} Hz
+                    </Text>
+                  </View>
+                  <Text style={styles.voiceStatDescription}>
+                    {(() => {
+                      const centroid = analysisResult.voice.features.spectral?.spectral_centroid_mean || 0;
+                      if (centroid < 2000) return '🔴 Lower than normal - indicates nasal resonance';
+                      if (centroid < 2500) return '🟡 Slightly lower - mild nasal quality';
+                      return '🟢 Normal range - clear voice';
+                    })()}
+                  </Text>
+
+                  <View style={styles.voiceStatRow}>
+                    <Text style={styles.voiceStatLabel}>Low/High Frequency Ratio</Text>
+                    <Text style={styles.voiceStatValue}>
+                      {analysisResult.voice.features.formant_proxy?.low_to_high_ratio?.toFixed(2) || 'N/A'}
+                    </Text>
+                  </View>
+                  <Text style={styles.voiceStatDescription}>
+                    {(() => {
+                      const ratio = analysisResult.voice.features.formant_proxy?.low_to_high_ratio || 0;
+                      if (ratio > 2.0) return '🔴 High ratio - strong nasal congestion signature';
+                      if (ratio > 1.5) return '🟡 Elevated - moderate congestion possible';
+                      return '🟢 Normal - balanced frequency distribution';
+                    })()}
+                  </Text>
+
+                  <View style={styles.voiceStatRow}>
+                    <Text style={styles.voiceStatLabel}>Spectral Rolloff</Text>
+                    <Text style={styles.voiceStatValue}>
+                      {Math.round(analysisResult.voice.features.spectral?.spectral_rolloff_mean || 0)} Hz
+                    </Text>
+                  </View>
+                  <Text style={styles.voiceStatDescription}>
+                    {(() => {
+                      const rolloff = analysisResult.voice.features.spectral?.spectral_rolloff_mean || 0;
+                      if (rolloff < 4000) return '🔴 Low - energy concentrated in lower frequencies';
+                      if (rolloff < 5000) return '🟡 Moderate - some nasal characteristics';
+                      return '🟢 Normal - full frequency range';
+                    })()}
+                  </Text>
+
+                  <View style={styles.voiceStatRow}>
+                    <Text style={styles.voiceStatLabel}>Low Band Energy</Text>
+                    <Text style={styles.voiceStatValue}>
+                      {Math.round(analysisResult.voice.features.formant_proxy?.low_band_energy || 0)}
+                    </Text>
+                  </View>
+                  <Text style={styles.voiceStatDescription}>
+                    {(() => {
+                      const energy = analysisResult.voice.features.formant_proxy?.low_band_energy || 0;
+                      if (energy > 30) return '🔴 High - strong nasal resonance detected';
+                      if (energy > 20) return '🟡 Elevated - some nasal quality';
+                      return '🟢 Normal - typical voice characteristics';
+                    })()}
+                  </Text>
+
+                  <View style={styles.voiceStatRow}>
+                    <Text style={styles.voiceStatLabel}>Sample Rate</Text>
+                    <Text style={styles.voiceStatValue}>
+                      {(analysisResult.voice.features.sample_rate / 1000).toFixed(1)} kHz
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Congestion indicator */}
+              {analysisResult.voice.suggests_congestion && (
+                <View style={styles.voiceCongestionBadge}>
+                  <Ionicons name="water-outline" size={16} color="#ff6b6b" />
+                  <Text style={styles.voiceCongestionText}>Nasal congestion detected</Text>
+                </View>
+              )}
             </GlassCard>
           )}
 
@@ -480,9 +637,19 @@ export default function HomeScreen() {
                 </Text>
               </View>
               <Text style={styles.resultCardBody}>
-                {analysisResult.location?.displayName
-                  ? analysisResult.environmentalFactors.replace(/^./, (c) => c.toLowerCase())
-                  : `In your area, ${analysisResult.environmentalFactors.replace(/^./, (c) => c.toLowerCase())}`}
+                {(() => {
+                  const text = analysisResult.location?.displayName
+                    ? analysisResult.environmentalFactors!.replace(/^./, (c) => c.toLowerCase())
+                    : `In your area, ${analysisResult.environmentalFactors!.replace(/^./, (c) => c.toLowerCase())}`;
+                  return text.split(/(\bpollen\b|\bhigh\b|\bmoderate\b|\blow\b|\bgrass\b|\btree\b|\bweed\b|\bragweed\b|\birritant\b|\bair quality\b|\bhumidity\b|\bwind\b|\bmold\b|\bdust\b|\bsevere\b|\belevated\b)/gi).map((part, i) => {
+                    const isHighlight = /^(pollen|high|moderate|low|grass|tree|weed|ragweed|irritant|air quality|humidity|wind|mold|dust|severe|elevated)$/i.test(part);
+                    return isHighlight ? (
+                      <Text key={i} style={styles.highlightedKeyword}>{part}</Text>
+                    ) : (
+                      <Text key={i}>{part}</Text>
+                    );
+                  });
+                })()}
               </Text>
             </GlassCard>
           )}
@@ -494,7 +661,16 @@ export default function HomeScreen() {
                 <Ionicons name="bulb-outline" size={18} color={colors.text} />
                 <Text style={styles.resultCardTitle}>Recommendations</Text>
               </View>
-              <Text style={styles.resultCardBody}>{analysisResult.recommendations}</Text>
+              <Text style={styles.resultCardBody}>
+                {analysisResult.recommendations.split(/(\bavoid\b|\bconsult\b|\bseek medical\b|\bantihistamine\b|\beye drops\b|\bindoor\b|\bmedication\b|\bmonitor\b|\brinse\b|\bwash hands\b|\bsunglasses\b|\bpollen\b|\bdoctor\b|\bspecialist\b|\burgent\b|\bimmediate\b)/gi).map((part, i) => {
+                  const isHighlight = /^(avoid|consult|seek medical|antihistamine|eye drops|indoor|medication|monitor|rinse|wash hands|sunglasses|pollen|doctor|specialist|urgent|immediate)$/i.test(part);
+                  return isHighlight ? (
+                    <Text key={i} style={styles.highlightedKeyword}>{part}</Text>
+                  ) : (
+                    <Text key={i}>{part}</Text>
+                  );
+                })}
+              </Text>
             </GlassCard>
           )}
 
@@ -508,20 +684,6 @@ export default function HomeScreen() {
                   : 'Based on these results, we recommend consulting a healthcare professional.'}
               </Text>
             </View>
-          )}
-
-          {/* Voice analysis if available */}
-          {analysisResult.voice && !analysisResult.voice.error && (
-            <GlassCard style={styles.resultCard} innerStyle={styles.resultCardInner}>
-              <View style={styles.resultCardHeader}>
-                <Ionicons name="mic-outline" size={18} color={colors.text} />
-                <Text style={styles.resultCardTitle}>Voice Analysis</Text>
-              </View>
-              <Text style={styles.resultCardBody}>
-                Nasality: {analysisResult.voice.nasality_score}/100 — {analysisResult.voice.interpretation}
-                {analysisResult.voice.suggests_congestion ? '\nSuggests nasal congestion.' : ''}
-              </Text>
-            </GlassCard>
           )}
 
           {/* Save to history — explicit save with feedback */}
