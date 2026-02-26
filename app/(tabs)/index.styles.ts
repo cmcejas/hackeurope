@@ -391,6 +391,54 @@ export const styles = StyleSheet.create({
     color: colors.onPrimary,
   },
 
+  /* ── Sample progress dots ── */
+  sampleDots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: spacing.xs,
+  },
+  sampleDotBase: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  sampleDotFilled: {
+    backgroundColor: colors.primary,
+  },
+  sampleDotEmpty: {
+    backgroundColor: 'transparent',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  sampleDotCurrent: {
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+  },
+
+  /* ── Info banner ── */
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(245, 166, 35, 0.08)',
+    borderRadius: radii.md,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 166, 35, 0.15)',
+    width: '100%',
+    maxWidth: 340,
+  },
+  infoBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+
   /* ── Recording ── */
   recordingContainer: {
     flex: 1,

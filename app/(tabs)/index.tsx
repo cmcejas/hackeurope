@@ -64,7 +64,7 @@ export default function HomeScreen() {
   const [cameraReady, setCameraReady] = useState(false);
   const [eyePhotoBase64, setEyePhotoBase64] = useState<string | null>(null);
   const [readAloudSentence, setReadAloudSentence] = useState('');
-  const [voiceUri, setVoiceUri] = useState<string | null>(null);
+  const [voiceRecordings, setVoiceRecordings] = useState<string[]>([]);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -135,28 +135,76 @@ export default function HomeScreen() {
     const recording = recordingRef.current;
     recordingRef.current = null;
     setIsRecording(false);
-    setStep('analyzing');
     try {
       await recording.stopAndUnloadAsync();
       await new Promise((r) => setTimeout(r, 400));
       const uri = recording.getURI();
-      setVoiceUri(uri ?? null);
-      await runAnalysis(uri ?? undefined);
+      if (uri) {
+        const updated = [...voiceRecordings, uri];
+        setVoiceRecordings(updated);
+        if (updated.length >= 3) {
+          // 3rd recording — proceed to analysis
+          setStep('analyzing');
+          await runAnalysisMulti(updated);
+        } else {
+          // Stay on recording step, pick new sentence
+          setReadAloudSentence(pickSentence());
+        }
+      } else {
+        Alert.alert('Error', 'Recording file not saved. Please try again.');
+      }
     } catch {
       Alert.alert('Error', 'Failed to stop recording');
-      await runAnalysis(undefined);
     }
   };
 
-  const runAnalysis = async (finalVoiceUri?: string) => {
+  /** Convert a single voice URI to {base64, mediaType}. Returns null on failure. */
+  const readVoiceUri = async (uri: string): Promise<{ base64: string; mediaType: string } | null> => {
+    let voiceMediaType = 'audio/m4a';
+    try {
+      if (Platform.OS === 'web' && uri.startsWith('blob:')) {
+        const blob = await fetch(uri).then((r) => r.blob());
+        if (blob.type) voiceMediaType = blob.type;
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const dataUrl = reader.result as string;
+            const b64 = dataUrl.split(',')[1];
+            if (b64) resolve(b64);
+            else reject(new Error('FileReader produced empty base64'));
+          };
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(blob);
+        });
+        return { base64, mediaType: voiceMediaType };
+      } else {
+        let readUri = uri;
+        if (uri.startsWith('content://') && FileSystem.cacheDirectory) {
+          const dest = `${FileSystem.cacheDirectory}voice_upload_${Date.now()}.m4a`;
+          try {
+            await FileSystem.copyAsync({ from: uri, to: dest });
+            readUri = dest;
+          } catch (copyErr) {
+            console.warn('[readVoiceUri] Copy content:// to cache failed, trying direct read:', copyErr);
+          }
+        }
+        const base64 = await FileSystem.readAsStringAsync(readUri, { encoding: 'base64' });
+        return { base64, mediaType: voiceMediaType };
+      }
+    } catch (e) {
+      console.warn('[readVoiceUri] Could not read voice file:', uri, e);
+      return null;
+    }
+  };
+
+  const runAnalysisMulti = async (uris: string[]) => {
     if (!eyePhotoBase64) {
       Alert.alert('No Eye Photo', 'Please take a photo of your eye before submitting for analysis.');
       setStep('camera');
       return;
     }
-    console.log('[runAnalysis] Sending to backend:', API_URL);
+    console.log('[runAnalysis] Sending to backend:', API_URL, 'voiceSamples:', uris.length);
     try {
-      // Fallback: Trinity College Dublin (College Green)
       let lat = 53.343792;
       let lon = -6.254492;
       try {
@@ -167,55 +215,21 @@ export default function HomeScreen() {
         // use fallback
       }
 
-      const uri = finalVoiceUri ?? voiceUri ?? null;
-      let voiceBase64: string | null = null;
-      let voiceMediaType = 'audio/m4a';
-      if (uri) {
-        try {
-          if (Platform.OS === 'web' && uri.startsWith('blob:')) {
-            // Web: expo-av returns blob: URLs that FileSystem can't read.
-            // Fetch the blob and convert to base64 via FileReader.
-            const blob = await fetch(uri).then((r) => r.blob());
-            if (blob.type) voiceMediaType = blob.type;
-            voiceBase64 = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.onloadend = () => {
-                const dataUrl = reader.result as string;
-                const b64 = dataUrl.split(',')[1];
-                if (b64) resolve(b64);
-                else reject(new Error('FileReader produced empty base64'));
-              };
-              reader.onerror = () => reject(reader.error);
-              reader.readAsDataURL(blob);
-            });
-            console.log('[runAnalysis] Web blob read OK, type:', voiceMediaType, 'base64 length:', voiceBase64.length);
-          } else {
-            // Native (iOS/Android): use FileSystem
-            let readUri = uri;
-            if (uri.startsWith('content://') && FileSystem.cacheDirectory) {
-              const dest = `${FileSystem.cacheDirectory}voice_upload_${Date.now()}.m4a`;
-              try {
-                await FileSystem.copyAsync({ from: uri, to: dest });
-                readUri = dest;
-              } catch (copyErr) {
-                console.warn('[runAnalysis] Copy content:// to cache failed, trying direct read:', copyErr);
-              }
-            }
-            voiceBase64 = await FileSystem.readAsStringAsync(readUri, { encoding: 'base64' });
-          }
-        } catch (e) {
-          console.warn('[runAnalysis] Could not read voice file:', uri, e);
-          Alert.alert('Voice skipped', `Could not read the recording file. Analysis will proceed without voice.\n\n${e}`);
-        }
-      } else {
-        console.warn('[runAnalysis] No voice URI — recording may not have saved');
+      // Read all voice URIs to base64
+      const voiceSamples: { base64: string; mediaType: string }[] = [];
+      for (const uri of uris) {
+        const sample = await readVoiceUri(uri);
+        if (sample) voiceSamples.push(sample);
+      }
+
+      if (uris.length > 0 && voiceSamples.length === 0) {
+        Alert.alert('Voice skipped', 'Could not read any recording files. Analysis will proceed without voice.');
       }
 
       const result = await analyzeHealth({
         imageBase64: eyePhotoBase64,
         imageMediaType: 'image/jpeg',
-        voiceBase64,
-        voiceMediaType,
+        voiceSamples: voiceSamples.length > 0 ? voiceSamples : undefined,
         latitude: lat,
         longitude: lon,
         allergyHistory: allergyHistoryText.trim() || undefined,
@@ -249,7 +263,7 @@ export default function HomeScreen() {
     setCameraReady(false);
     setEyePhotoBase64(null);
     setReadAloudSentence('');
-    setVoiceUri(null);
+    setVoiceRecordings([]);
     setAnalysisResult(null);
     setAnalysisError(null);
     setAllergyHistoryText('');
@@ -335,17 +349,66 @@ export default function HomeScreen() {
 
   /* ═══════════════  RECORDING  ═══════════════ */
   if (step === 'recording') {
+    const recordingCount = voiceRecordings.length;
+    const sampleNum = recordingCount + 1; // current sample being recorded
+    const isLastSample = recordingCount === 2; // will be 3rd
+
+    const handleSkipVoice = () => {
+      const msg = recordingCount > 0
+        ? `You have ${recordingCount} sample${recordingCount > 1 ? 's' : ''}. Skipping now will analyze with what you have.`
+        : 'Voice analysis helps detect nasal congestion. Skipping it may reduce accuracy.';
+
+      const doSkip = () => {
+        setStep('analyzing');
+        runAnalysisMulti(voiceRecordings);
+      };
+
+      if (Platform.OS === 'web') {
+        // Alert.alert buttons don't work on web — use window.confirm instead
+        if (window.confirm(`Skip Voice Recording?\n\n${msg}`)) {
+          doSkip();
+        }
+      } else {
+        Alert.alert('Skip Voice Recording?', msg, [
+          { text: 'Go Back', style: 'cancel' },
+          { text: 'Skip', onPress: doSkip },
+        ]);
+      }
+    };
+
     return (
       <View style={styles.container}>
         <GradientBackground />
         <View style={styles.contentWrap}>
           <View style={styles.stepHeader}>
             <Text style={styles.stepLabel}>Step 2 of 2</Text>
-            <Text style={styles.stepTitle}>Voice Sample</Text>
+            <Text style={styles.stepTitle}>Sample {sampleNum} of 3</Text>
           </View>
           <StepDots current={1} />
 
+          {/* Sample progress dots */}
+          <View style={styles.sampleDots}>
+            {[0, 1, 2].map((i) => (
+              <View
+                key={i}
+                style={[
+                  styles.sampleDotBase,
+                  i < recordingCount ? styles.sampleDotFilled : styles.sampleDotEmpty,
+                  i === recordingCount && styles.sampleDotCurrent,
+                ]}
+              />
+            ))}
+          </View>
+
           <View style={styles.recordingContainer}>
+          {/* Info banner */}
+          <View style={styles.infoBanner}>
+            <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
+            <Text style={styles.infoBannerText}>
+              Record 3 voice samples in a quiet room for best accuracy.
+            </Text>
+          </View>
+
           <View style={[styles.micCircle, isRecording && styles.micCircleActive]}>
             <Ionicons
               name={isRecording ? 'radio-button-on' : 'mic'}
@@ -371,16 +434,7 @@ export default function HomeScreen() {
           {!isRecording ? (
             <TouchableOpacity
               style={[styles.pillButton, styles.pillSecondary]}
-              onPress={() => {
-                Alert.alert(
-                  'Skip Voice Recording?',
-                  'Voice analysis helps detect nasal congestion. Skipping it may reduce accuracy.',
-                  [
-                    { text: 'Go Back', style: 'cancel' },
-                    { text: 'Skip', onPress: () => runAnalysis(undefined) },
-                  ]
-                );
-              }}
+              onPress={handleSkipVoice}
             >
               <Text style={styles.pillText}>Skip</Text>
             </TouchableOpacity>
@@ -395,7 +449,9 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={[styles.pillButton, styles.pillDanger]} onPress={stopRecording}>
-              <Text style={styles.pillTextOnColor}>Stop & Analyze</Text>
+              <Text style={styles.pillTextOnColor}>
+                {isLastSample ? 'Stop & Analyze' : 'Save Sample'}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -428,7 +484,7 @@ export default function HomeScreen() {
                   style={[styles.pillButton, styles.pillPrimary]}
                   onPress={() => {
                     setAnalysisError(null);
-                    runAnalysis(voiceUri ?? undefined);
+                    runAnalysisMulti(voiceRecordings);
                   }}
                 >
                   <Text style={styles.pillTextOnColor}>Retry</Text>

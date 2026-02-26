@@ -489,7 +489,43 @@ Respond with a single JSON object only, no markdown or extra text:
 
 /* ═══════════════  ROUTES  ═══════════════ */
 
-/** POST /analyze — JSON body: imageBase64, imageMediaType, latitude, longitude, optional voiceBase64 + voiceMediaType */
+/**
+ * Average multiple voice analysis results. Returns a merged voiceAnalysis object
+ * with averaged nasality_score and confidence, and features from the longest sample.
+ */
+function averageVoiceResults(results) {
+  const valid = results.filter((r) => r && !r.error);
+  if (valid.length === 0) {
+    // Return the first error result or null
+    return results.find((r) => r?.error) || null;
+  }
+  if (valid.length === 1) return valid[0];
+
+  const avgNasality = valid.reduce((s, r) => s + (r.nasality_score || 0), 0) / valid.length;
+  const avgConfidence = valid.reduce((s, r) => s + (r.confidence || 0), 0) / valid.length;
+
+  // Pick features from the longest recording
+  let longestFeatures = valid[0].features;
+  let longestDuration = valid[0].features?.duration_seconds || 0;
+  for (const r of valid) {
+    const dur = r.features?.duration_seconds || 0;
+    if (dur > longestDuration) {
+      longestDuration = dur;
+      longestFeatures = r.features;
+    }
+  }
+
+  return {
+    nasality_score: Math.round(avgNasality * 100) / 100,
+    confidence: Math.round(avgConfidence * 100) / 100,
+    interpretation: valid[valid.length - 1].interpretation, // use last interpretation as base
+    suggests_congestion: avgNasality >= 50,
+    features: longestFeatures,
+    samples_averaged: valid.length,
+  };
+}
+
+/** POST /analyze — JSON body: imageBase64, imageMediaType, latitude, longitude, optional voiceBase64/voiceSamples */
 app.post('/analyze', async (req, res) => {
   try {
     const body = req.body || {};
@@ -497,13 +533,18 @@ app.post('/analyze', async (req, res) => {
     const imageMediaType = (body.imageMediaType || 'image/jpeg').trim();
     const lat = parseFloat(body.latitude);
     const lon = parseFloat(body.longitude);
-    const voiceBase64 = body.hasOwnProperty('voiceBase64') && body.voiceBase64 != null && body.voiceBase64 !== ''
+
+    // Support multi-sample voice (voiceSamples array) or single voiceBase64
+    const voiceSamples = Array.isArray(body.voiceSamples) ? body.voiceSamples : null;
+    const voiceBase64 = !voiceSamples && body.hasOwnProperty('voiceBase64') && body.voiceBase64 != null && body.voiceBase64 !== ''
       ? String(body.voiceBase64)
       : null;
     const voiceMimeType = (body.voiceMediaType || 'audio/m4a').trim();
 
     console.log('[/analyze] Request received', {
       bodyKeys: Object.keys(body),
+      hasVoiceSamples: Boolean(voiceSamples),
+      voiceSamplesCount: voiceSamples?.length ?? 0,
       hasVoice: Boolean(voiceBase64),
       voiceLen: voiceBase64?.length ?? 0,
       voiceServiceConfigured: Boolean(VOICE_SERVICE_URL),
@@ -513,17 +554,33 @@ app.post('/analyze', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields: imageBase64, latitude, longitude' });
     }
 
-    let voiceBuffer = null;
-    const voiceExt = voiceMimeType.includes('webm') ? 'webm' : voiceMimeType.includes('ogg') ? 'ogg' : 'm4a';
-    const voiceFilename = `recording.${voiceExt}`;
-    if (voiceBase64) {
+    // Build voice analysis promise(s)
+    let voiceAnalysisPromise;
+
+    if (voiceSamples && voiceSamples.length > 0) {
+      // Multi-sample: analyze each in parallel, then average
+      voiceAnalysisPromise = Promise.all(
+        voiceSamples.map((sample) => {
+          const mime = (sample.mediaType || 'audio/m4a').trim();
+          const ext = mime.includes('webm') ? 'webm' : mime.includes('ogg') ? 'ogg' : 'm4a';
+          const raw = toRawBase64(sample.base64);
+          const buf = Buffer.from(raw, 'base64');
+          return analyzeVoice(buf, `recording.${ext}`, mime);
+        })
+      ).then(averageVoiceResults);
+    } else if (voiceBase64) {
+      // Single sample (backward compat)
+      const voiceExt = voiceMimeType.includes('webm') ? 'webm' : voiceMimeType.includes('ogg') ? 'ogg' : 'm4a';
       const raw = toRawBase64(voiceBase64);
-      voiceBuffer = Buffer.from(raw, 'base64');
+      const voiceBuffer = Buffer.from(raw, 'base64');
+      voiceAnalysisPromise = analyzeVoice(voiceBuffer, `recording.${voiceExt}`, voiceMimeType);
+    } else {
+      voiceAnalysisPromise = Promise.resolve(null);
     }
 
     const [environmentalData, voiceAnalysis, displayName] = await Promise.all([
       getGooglePollenData(lat, lon),
-      analyzeVoice(voiceBuffer, voiceFilename, voiceMimeType),
+      voiceAnalysisPromise,
       reverseGeocodeWithGoogle(lat, lon),
     ]);
 

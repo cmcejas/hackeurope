@@ -22,6 +22,8 @@ export interface AnalyzePayload {
   /** Voice recording as base64 (avoids multipart file upload issues). */
   voiceBase64?: string | null;
   voiceMediaType?: string;
+  /** Multiple voice samples for improved accuracy (backend averages results). */
+  voiceSamples?: { base64: string; mediaType: string }[];
   latitude: number;
   longitude: number;
   /** Optional: user-provided allergy history and symptoms (sent to AI). */
@@ -39,9 +41,15 @@ export async function analyzeHealth(payload: AnalyzePayload): Promise<AnalysisRe
     longitude: payload.longitude,
     imageBase64: payload.imageBase64,
     imageMediaType: payload.imageMediaType || 'image/jpeg',
-    voiceBase64: payload.voiceBase64 ?? null,
-    voiceMediaType: payload.voiceMediaType || 'audio/m4a',
   };
+
+  // Prefer voiceSamples (multi-recording); fall back to single voiceBase64
+  if (payload.voiceSamples && payload.voiceSamples.length > 0) {
+    body.voiceSamples = payload.voiceSamples;
+  } else {
+    body.voiceBase64 = payload.voiceBase64 ?? null;
+    body.voiceMediaType = payload.voiceMediaType || 'audio/m4a';
+  }
 
   if (payload.allergyHistory?.trim()) {
     body.allergyHistory = payload.allergyHistory.trim();
